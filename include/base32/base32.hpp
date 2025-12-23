@@ -1,16 +1,18 @@
 #pragma once
+#include <stdint.h>
+
 #include <string>
 
-namespace csl {
-  std::string getString();
+namespace base32 {
+  enum class error {
+    NO_ERROR = 0,
+    INVALID_B32_INPUT,
+    MEMORY_ALLOCATION_ERROR,
+    INVALID_USER_INPUT,
+    EMPTY_STRING
+  };
 
-  constexpr int factorialConstexpr(int input) noexcept {
-    if (input < 2) {
-      return 1;
-    }
+  char *encode(const uint8_t *user_data, size_t data_len, error *err_code);
 
-    return input * factorialConstexpr(input - 1);
-  }
-
-  int factorial(int input) noexcept;
-}  // namespace csl
+  uint8_t *decode(const char *user_data_untrimmed, size_t data_len, error *err_code);
+}  // namespace base32
