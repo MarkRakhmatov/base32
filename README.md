@@ -1,9 +1,9 @@
-# CppStaticLib
+# base32
 
-[![ci](https://github.com/MarkRakhmatov/CppStaticLibTemplate/actions/workflows/ci.yml/badge.svg)](https://github.com/MarkRakhmatov/CppStaticLibTemplate/actions/workflows/ci.yml)
+[![ci](https://github.com/MarkRakhmatov/base32/actions/workflows/ci.yml/badge.svg)](https://github.com/MarkRakhmatov/base32/actions/workflows/ci.yml)
 
-## About
-C++ 23 static library template
+## About base32
+C++20 Base32 encoding/decoding library
 
 ### By default:
 * Warnings as errors
@@ -28,3 +28,16 @@ C++ 23 static library template
 | MSVC |:heavy_check_mark: | |
 | clang | | :heavy_check_mark: |
 | gcc | | :heavy_check_mark: |
+
+### Usage
+To use base32 library in cmake project:
+
+```
+CPMAddPackage("gh:MarkRakhmatov/base32@v0.1.0")
+```
+
+Link base32 library to your target
+```
+target_link_libraries(your_target PRIVATE base32)
+```
+
