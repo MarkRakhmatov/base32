@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <array>
+#include <ranges>
 
 
 #ifdef _MSC_VER
@@ -19,25 +20,43 @@ constexpr size_t MAX_ENCODE_INPUT_LEN = 64 * 1024 * 1024;
 // input is allowed for decoding
 constexpr size_t MAX_DECODE_BASE32_INPUT_LEN = ((MAX_ENCODE_INPUT_LEN * 8 + 4) / 5);
 
-constexpr uint8_t b32_alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+constexpr std::array<uint8_t, 33> b32_alphabet{"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"};
 
-constexpr std::array<char, 256> build_alphabet_lookup_table() {
-  std::array<char, 256> table{};
-  for (const uint8_t *p = b32_alphabet; *p; p++) {
-    table[*p] = 1;
+constexpr std::array<int, 128> build_positions_in_alphabet() {
+  std::array<int, 128> table{};
+  table.fill(-1);
+
+  for(size_t i = 0; i < std::size(b32_alphabet); ++i) {
+    table[b32_alphabet[i]] = static_cast<int>(i);
+  }
+
+  return table;
+}
+
+constexpr std::array<int, 128> positions_in_alphabet = build_positions_in_alphabet();
+
+constexpr std::array<bool, 128> build_alphabet_lookup_table() {
+  std::array<bool, 128> table{};
+  for (const uint8_t p: b32_alphabet) {
+    table[p] = 1;
   }
   table['='] = 1;
 
   return table;
 }
 
-constexpr std::array<char, 256> alphabet_lookup_table = build_alphabet_lookup_table();
+constexpr std::array<bool, 128> alphabet_lookup_table = build_alphabet_lookup_table();
+
+
+constexpr bool in_alphabet(char c) {
+  if (c < 0) {
+    return false;
+  }
+
+  return alphabet_lookup_table[c];
+}
 
 namespace base32 {
-
-  static int get_char_index(uint8_t c);
-
-  static bool is_string_valid_b32(std::string_view user_data);
 
   // The encoding process represents 40-bit groups of input bits as output strings of 8 encoded
   // characters. The input data must be null terminated.
@@ -66,7 +85,6 @@ namespace base32 {
     }
 
     const size_t output_length = (user_data_chars * 8 + 4) / 5;
-    // (5*output_length - 4)/8 = user_data_chars
     std::string encoded_data(output_length + num_of_equals, '\0');
 
     for (size_t i = 0, j = 0; i < user_data_chars; i += 5) {
@@ -96,17 +114,14 @@ namespace base32 {
       return {};
     }
 
-    if (!is_string_valid_b32(user_data)) {
-      *err_code = error::INVALID_B32_INPUT;
-      return {};
-    }
-
-    size_t user_data_chars = 0;
-    for (size_t i = 0; i < user_data.size(); i++) {
+    size_t user_data_chars = user_data.size();
+    for (auto chr: user_data | std::views::reverse) {
       // As it's not known whether data_len is with or without the +1 for the null byte, a manual
       // check is required.
-      if (user_data[i] != '=' && user_data[i] != '\0') {
-        user_data_chars += 1;
+      if (chr == '=' || chr == '\0') {
+        user_data_chars -= 1;
+      } else {
+        break;
       }
     }
 
@@ -121,7 +136,12 @@ namespace base32 {
       if (user_data[i] == ' ') {
         continue;
       }
-      const int char_index = get_char_index((uint8_t)user_data[i]);
+      else if (!in_alphabet(user_data[i]))
+      {
+        *err_code = error::INVALID_B32_INPUT;
+        return {};
+      }
+      const int char_index = positions_in_alphabet[(uint8_t)user_data[i]];
       if (bits_left > BITS_PER_B32_BLOCK) {
         mask = (uint8_t)char_index << (bits_left - BITS_PER_B32_BLOCK);
         current_byte |= mask;
@@ -138,24 +158,5 @@ namespace base32 {
     *err_code = error::NO_ERROR;
 
     return decoded_data;
-  }
-
-  static bool is_string_valid_b32(std::string_view user_data) {
-    for (const auto ch: user_data) {
-      if (alphabet_lookup_table[ch] == 0 && ch != ' ') {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  static int get_char_index(uint8_t c) {
-    for (size_t i = 0; i < sizeof(b32_alphabet); i++) {
-      if (b32_alphabet[i] == c) {
-        return int(i);
-      }
-    }
-    return -1;
   }
 }  // namespace base32

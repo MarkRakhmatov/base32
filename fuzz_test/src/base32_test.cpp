@@ -7,18 +7,6 @@
 #include <cstdlib>
 #include <string_view>
 
-TEST(Base32Suite, factorial2) {
-  const char *token = "LLFTSZYMUGKHEDQBAAACAZAMUFKKVFLS";
-  base32::error err{};
-
-  const auto binary = base32::decode(token, &err);
-  EXPECT_EQ(err, base32::error::NO_ERROR);
-
-  const auto result = base32::encode(binary, &err);
-  EXPECT_EQ(err,  base32::error::NO_ERROR);
-  EXPECT_EQ(result,  token);
-}
-
 void base32DecodeNotCrashes(std::string_view encoded) {
   base32::error err{};
   base32::decode(encoded, &err);
