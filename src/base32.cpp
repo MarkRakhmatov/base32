@@ -21,8 +21,8 @@ constexpr size_t MAX_DECODE_BASE32_INPUT_LEN = ((MAX_ENCODE_INPUT_LEN * 8 + 4) /
 
 constexpr uint8_t b32_alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
-constexpr std::array<char, 128> build_alphabet_lookup_table() {
-  std::array<char, 128> table{};
+constexpr std::array<char, 256> build_alphabet_lookup_table() {
+  std::array<char, 256> table{};
   for (const uint8_t *p = b32_alphabet; *p; p++) {
     table[*p] = 1;
   }
@@ -31,7 +31,7 @@ constexpr std::array<char, 128> build_alphabet_lookup_table() {
   return table;
 }
 
-constexpr std::array<char, 128> alphabet_lookup_table = build_alphabet_lookup_table();
+constexpr std::array<char, 256> alphabet_lookup_table = build_alphabet_lookup_table();
 
 namespace base32 {
 
