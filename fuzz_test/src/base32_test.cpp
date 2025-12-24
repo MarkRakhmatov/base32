@@ -5,22 +5,18 @@
 
 #include <base32/base32.hpp>
 #include <cstdlib>
+#include <string_view>
 
-TEST(FactorialFuzzTestSuite, factorial2) {
-  EXPECT_EQ(csl::factorial(2), 2);
+void base32DecodeNotCrashes(std::string_view encoded) {
+  base32::error err{};
+  base32::decode(encoded, &err);
 }
 
-void factorialAlwaysGreaterThan0OrInvalid(int i) {
-  auto res = csl::factorial(i);
-  EXPECT_TRUE(res > 0 || res == -1 );
+FUZZ_TEST(Base32Suite, base32DecodeNotCrashes);
+
+void base32EncodeNotCrashes(const base32::Bytes& bytes) {
+  base32::error err{};
+  base32::encode(bytes, &err);
 }
 
-FUZZ_TEST(FactorialFuzzTestSuite, factorialAlwaysGreaterThan0OrInvalid);
-
-
-void factorialWithNegativeInput(int i) {
-  auto res = csl::factorial(-i);
-  EXPECT_TRUE(res > 0 || res == -1 );
-}
-
-FUZZ_TEST(FactorialFuzzTestSuite, factorialWithNegativeInput);
+FUZZ_TEST(Base32Suite, base32EncodeNotCrashes);
