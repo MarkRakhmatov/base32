@@ -1,10 +1,13 @@
 #pragma once
-#include <stdint.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
+
 
 namespace base32 {
-  enum class error {
+  enum class error: uint8_t {
     NO_ERROR = 0,
     INVALID_B32_INPUT,
     MEMORY_ALLOCATION_ERROR,
@@ -12,7 +15,9 @@ namespace base32 {
     EMPTY_STRING
   };
 
-  char *encode(const uint8_t *user_data, size_t data_len, error *err_code);
+  using Bytes = std::vector<uint8_t>;
 
-  uint8_t *decode(const char *user_data_untrimmed, size_t data_len, error *err_code);
+  std::string encode(const Bytes&user_data, error *err_code);
+
+  Bytes decode(std::string_view user_data, error *err_code);
 }  // namespace base32

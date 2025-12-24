@@ -1,67 +1,55 @@
 #include "base32/base32.hpp"
 
-#include <stdlib.h>
-#include <string.h>
+#include <cstdlib>
+#include <cstring>
+#include <array>
 
-#include <string>
 
 #ifdef _MSC_VER
 #  define strdup _strdup
 #endif
 
-size_t BITS_PER_BYTE = 8;
-size_t BITS_PER_B32_BLOCK = 5;
+constexpr size_t BITS_PER_BYTE = 8;
+constexpr size_t BITS_PER_B32_BLOCK = 5;
 
 // 64 MB should be more than enough
-size_t MAX_ENCODE_INPUT_LEN = 64 * 1024 * 1024;
+constexpr size_t MAX_ENCODE_INPUT_LEN = 64 * 1024 * 1024;
 
 // if 64 MB of data is encoded than it should be also possible to decode it. That's why a bigger
 // input is allowed for decoding
-size_t MAX_DECODE_BASE32_INPUT_LEN = ((MAX_ENCODE_INPUT_LEN * 8 + 4) / 5);
+constexpr size_t MAX_DECODE_BASE32_INPUT_LEN = ((MAX_ENCODE_INPUT_LEN * 8 + 4) / 5);
 
-const uint8_t b32_alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+constexpr uint8_t b32_alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+constexpr std::array<char, 128> build_alphabet_lookup_table() {
+  std::array<char, 128> table{};
+  for (const uint8_t *p = b32_alphabet; *p; p++) {
+    table[*p] = 1;
+  }
+  table['='] = 1;
+
+  return table;
+}
+
+constexpr std::array<char, 128> alphabet_lookup_table = build_alphabet_lookup_table();
 
 namespace base32 {
 
   static int get_char_index(uint8_t c);
 
-  static bool valid_b32_str(const char *str);
-
-  static bool has_space(const char *str);
-
-  static error check_input(const uint8_t *user_data, size_t data_len, size_t max_len);
-
-  static int strip_char(char *str);
-
-  bool is_string_valid_b32(const char *user_data);
+  static bool is_string_valid_b32(std::string_view user_data);
 
   // The encoding process represents 40-bit groups of input bits as output strings of 8 encoded
   // characters. The input data must be null terminated.
-  char *encode(const uint8_t *user_data, size_t data_len, error *err_code) {
-    error error = check_input(user_data, data_len, MAX_ENCODE_INPUT_LEN);
-    if (error == error::EMPTY_STRING) {
-      *err_code = error;
-      return strdup("");
-    }
-    if (error != error::NO_ERROR) {
-      *err_code = error;
-      return NULL;
+  std::string encode(const Bytes&user_data, error *err_code) {
+    if (user_data.size() > MAX_ENCODE_INPUT_LEN) {
+      *err_code = error::INVALID_USER_INPUT;
+      return {};
     }
 
-    size_t user_data_chars = 0, total_bits = 0;
+    size_t user_data_chars = user_data.size();
+    size_t total_bits = user_data_chars*8;
     int num_of_equals = 0;
-    bool null_terminated = false;
-    if (strlen((char *)user_data) == data_len - 1) {
-      // the user might give the input with the null byte, we need to check for that
-      null_terminated = true;
-    }
-    for (size_t i = 0; i < data_len; i++) {
-      if (null_terminated && user_data[i] == '\0' && i == data_len - 1) {
-        break;
-      }
-      total_bits += 8;
-      user_data_chars += 1;
-    }
     switch (total_bits % 40) {
       case 8:
         num_of_equals = 6;
@@ -77,12 +65,9 @@ namespace base32 {
         break;
     }
 
-    size_t output_length = (user_data_chars * 8 + 4) / 5;
-    char *encoded_data = static_cast<char *>(calloc(output_length + num_of_equals + 1, 1));
-    if (encoded_data == NULL) {
-      *err_code = error::MEMORY_ALLOCATION_ERROR;
-      return NULL;
-    }
+    const size_t output_length = (user_data_chars * 8 + 4) / 5;
+    // (5*output_length - 4)/8 = user_data_chars
+    std::string encoded_data(output_length + num_of_equals, '\0');
 
     for (size_t i = 0, j = 0; i < user_data_chars; i += 5) {
       uint64_t quintuple = 0;
@@ -99,40 +84,25 @@ namespace base32 {
     for (int i = 0; i < num_of_equals; i++) {
       encoded_data[output_length + i] = '=';
     }
-    encoded_data[output_length + num_of_equals] = '\0';
 
     *err_code = error::NO_ERROR;
 
     return encoded_data;
   }
 
-  uint8_t *decode(const char *user_data_untrimmed, size_t data_len, error *err_code) {
-    error error
-        = check_input((uint8_t *)user_data_untrimmed, data_len, MAX_DECODE_BASE32_INPUT_LEN);
-    if (error == error::EMPTY_STRING) {
-      *err_code = error;
-      return (uint8_t *)strdup("");
+  Bytes decode(std::string_view user_data, error *err_code) {
+    if (user_data.size() > MAX_DECODE_BASE32_INPUT_LEN) {
+      *err_code = error::INVALID_USER_INPUT;
+      return {};
     }
-    if (error != error::NO_ERROR) {
-      *err_code = error;
-      return NULL;
-    }
-
-    char *user_data = strdup(user_data_untrimmed);
-    if (user_data == NULL) {
-      *err_code = error::MEMORY_ALLOCATION_ERROR;
-      return NULL;
-    }
-    data_len -= strip_char(user_data);
 
     if (!is_string_valid_b32(user_data)) {
-      free(user_data);
       *err_code = error::INVALID_B32_INPUT;
-      return NULL;
+      return {};
     }
 
     size_t user_data_chars = 0;
-    for (size_t i = 0; i < data_len; i++) {
+    for (size_t i = 0; i < user_data.size(); i++) {
       // As it's not known whether data_len is with or without the +1 for the null byte, a manual
       // check is required.
       if (user_data[i] != '=' && user_data[i] != '\0') {
@@ -140,18 +110,18 @@ namespace base32 {
       }
     }
 
-    size_t output_length = (size_t)((user_data_chars + 1.6 + 1) / 1.6);  // round up
-    uint8_t *decoded_data = static_cast<uint8_t *>(calloc(output_length + 1, 1));
-    if (decoded_data == NULL) {
-      free(user_data);
-      *err_code = error::MEMORY_ALLOCATION_ERROR;
-      return NULL;
-    }
+    size_t output_length = user_data_chars > 0? (5*user_data_chars - 4)/8: 0;  // round up
+    Bytes decoded_data;
+    decoded_data.reserve(output_length);
 
-    uint8_t mask, current_byte = 0;
-    size_t bits_left = 8;
-    for (size_t i = 0, j = 0; i < user_data_chars; i++) {
-      int char_index = get_char_index((uint8_t)user_data[i]);
+    uint8_t mask{0};
+    uint8_t current_byte{0};
+    size_t bits_left{8};
+    for (size_t i = 0; i < user_data_chars; i++) {
+      if (user_data[i] == ' ') {
+        continue;
+      }
+      const int char_index = get_char_index((uint8_t)user_data[i]);
       if (bits_left > BITS_PER_B32_BLOCK) {
         mask = (uint8_t)char_index << (bits_left - BITS_PER_B32_BLOCK);
         current_byte |= mask;
@@ -159,68 +129,25 @@ namespace base32 {
       } else {
         mask = (uint8_t)char_index >> (BITS_PER_B32_BLOCK - bits_left);
         current_byte |= mask;
-        decoded_data[j++] = current_byte;
+        decoded_data.push_back(current_byte);
         current_byte = (uint8_t)(char_index << (BITS_PER_BYTE - BITS_PER_B32_BLOCK + bits_left));
         bits_left += BITS_PER_BYTE - BITS_PER_B32_BLOCK;
       }
     }
-    decoded_data[output_length] = '\0';
-
-    free(user_data);
 
     *err_code = error::NO_ERROR;
 
     return decoded_data;
   }
 
-  bool is_string_valid_b32(const char *user_data) {
-    if (user_data == NULL) {
-      return false;
-    }
-
-    if (has_space(user_data)) {
-      char *trimmed = strdup(user_data);
-      if (trimmed == NULL) {
+  static bool is_string_valid_b32(std::string_view user_data) {
+    for (const auto ch: user_data) {
+      if (alphabet_lookup_table[ch] == 0 && ch != ' ') {
         return false;
       }
-      strip_char(trimmed);
-      bool valid = valid_b32_str(trimmed);
-      free(trimmed);
-      return valid;
-    }
-
-    return valid_b32_str(user_data);
-  }
-
-  static bool valid_b32_str(const char *str) {
-    if (str == NULL) {
-      return false;
-    }
-
-    uint8_t table[128] = {0};
-    for (const uint8_t *p = b32_alphabet; *p; p++) {
-      table[*p] = 1;
-    }
-    table['='] = 1;
-
-    while (*str) {
-      if (!table[(uint8_t)*str]) {
-        return false;
-      }
-      str++;
     }
 
     return true;
-  }
-
-  static bool has_space(const char *str) {
-    while (*str) {
-      if (*str == ' ') {
-        return true;
-      }
-      str++;
-    }
-    return false;
   }
 
   static int get_char_index(uint8_t c) {
@@ -231,35 +158,4 @@ namespace base32 {
     }
     return -1;
   }
-
-  static int strip_char(char *str) {
-    const char strip = ' ';
-    uint8_t table[128] = {0};
-    table[(uint8_t)strip] = 1;
-
-    int found = 0;
-    char *p, *q;
-    for (q = p = str; *p; p++) {
-      if (!table[*(uint8_t *)p]) {
-        *q++ = *p;
-      } else {
-        found++;
-      }
-    }
-    *q = '\0';
-    return found;
-  }
-
-  static error check_input(const uint8_t *user_data, size_t data_len, size_t max_len) {
-    if (!user_data || data_len > max_len) {
-      return error::INVALID_USER_INPUT;
-    }
-
-    if (data_len == 0) {
-      return error::EMPTY_STRING;
-    }
-
-    return error::NO_ERROR;
-  }
-
 }  // namespace base32
