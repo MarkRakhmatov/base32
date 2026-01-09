@@ -1,0 +1,259 @@
+name: ci
+on:
+  pull_request:
+  push:
+    tags:
+    branches:
+      - main
+      - develop
+
+env:
+  CLANG_COMPILER: "clang++"
+  CLANG_TIDY_VERSION: "19.1.1"
+
+jobs:
+  prepare_new_version:
+    name: Prepare version number for commit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: ./.github/semver
+      id: version
+      if: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
+
+    outputs:
+      previous_tag: ${{ steps.version.outputs.previous_tag }}
+      version: ${{ steps.version.outputs.version }}
+
+  build:
+    needs: prepare_new_version
+    permissions:
+      # permission required to leave coverage comment
+      contents: read
+      actions: read
+      pull-requests: write
+
+    name: ${{matrix.os}} ${{matrix.cpp_compiler}} ${{matrix.build_type}} ${{matrix.generator}} ${{matrix.package_generator}}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
+      fail-fast: false
+
+      # Set up a matrix to run the following 3 configurations:
+      # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
+      # 2. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
+      # 3. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
+      #
+      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        build_type:
+          - Release
+          - Debug
+        cpp_compiler:
+          - g++-14
+          - clang++
+          - cl
+        generator:
+          - "Ninja Multi-Config"
+        include:
+          # Add appropriate variables for gcov version required. This will intentionally break
+          # if you try to use a compiler that does not have gcov set
+          - cpp_compiler: g++-14
+            gcov_executable: gcov-14
+
+          - cpp_compiler: clang++
+            gcov_executable: "llvm-cov gcov"
+
+          # Set up preferred package generators, for given build configurations
+          - os: windows-latest
+            cpp_compiler: cl
+            generator: "Visual Studio 17 2022"
+            build_type: Release
+            package_generator: ZIP
+
+          - os: ubuntu-latest
+            cpp_compiler: g++-14
+            generator: "Unix Makefiles"
+            build_type: Release
+            package_generator: TBZ2
+
+          - os: ubuntu-latest
+            cpp_compiler: clang++
+            generator: "Unix Makefiles"
+            build_type: Release
+            package_generator: TBZ2
+
+        exclude:
+          - os: windows-latest
+            cpp_compiler: g++-14
+          - os: windows-latest
+            cpp_compiler: clang++
+          - os: ubuntu-latest
+            cpp_compiler: cl
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install format dependencies
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.cpp_compiler == env.CLANG_COMPILER }}
+      run: pip3 install cmake_format==0.6.11 pyyaml
+
+    - name: Check CMake style
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.cpp_compiler == env.CLANG_COMPILER }}
+      run: cmake-format --check ./CMakeLists.txt
+
+    - uses: DoozyX/clang-format-lint-action@v0.20
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.cpp_compiler == env.CLANG_COMPILER }}
+      with:
+        source: '.'
+        exclude: './third_party ./external'
+        extensions: 'h,cpp,hpp'
+        clangFormatVersion: 19
+        inplace: True
+
+    - name: Project Name
+      uses: cardinalby/export-env-action@v2
+      with:
+        envFile: '.github/constants.env'
+
+    - name: Setup Cpp
+      uses: aminya/setup-cpp@v1
+      with:
+        compiler: ${{ matrix.cpp_compiler }}
+        vcvarsall: ${{ contains(matrix.os, 'windows' )}}
+
+        cmake: true
+        ninja: ${{ contains(matrix.generator, 'Ninja' )}}
+        vcpkg: false
+        ccache: true
+        clangtidy: ${{ contains(matrix.cpp_compiler, 'clang' )}}
+
+        cppcheck: ${{ !contains(matrix.cpp_compiler, 'clang' )}}
+
+        gcovr: ${{ contains(matrix.os, 'ubuntu') && matrix.build_type == 'Debug'}}
+        opencppcoverage: ${{ contains(matrix.os, 'windows') && matrix.build_type == 'Debug'}}
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: >
+        cmake -B ${{ github.workspace }}/build
+        -G "${{matrix.generator}}"
+        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -D${{ env.PROJECT_NAME }}_ENABLE_CODE_ANALYSIS=ON
+        -D${{ env.PROJECT_NAME }}_BUILD_TESTS=ON
+        -D${{ env.PROJECT_NAME }}_ENABLE_COVERAGE:BOOL=${{ matrix.build_type == 'Debug' }}
+        -D${{ env.PROJECT_NAME }}_BUILD_FUZZ_TESTS:BOOL=${{ matrix.cpp_compiler == env.CLANG_COMPILER && matrix.build_type == 'Debug' }}
+        -S ${{ github.workspace }}
+
+    - name: Build
+      run: |
+        # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+        cmake --build ${{ github.workspace }}/build --config ${{ matrix.build_type }} --verbose
+
+    - name: Test
+      working-directory: ${{ github.workspace }}/build/test
+      # Execute tests defined by the CMake configuration.
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: |
+        ctest -C ${{matrix.build_type}} -V
+
+    - name: Fuzz Test
+      if: ${{ matrix.cpp_compiler == env.CLANG_COMPILER && matrix.build_type == 'Debug' }}
+      working-directory: ${{ github.workspace }}/build/fuzz_test
+      # Execute tests defined by the CMake configuration.
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: |
+        ctest -C ${{matrix.build_type}} -V
+
+    - name: Coverage - Collect on Unix
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.build_type == 'Debug'}}
+      working-directory: ${{ github.workspace }}/build
+      # Execute tests defined by the CMake configuration.
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: |
+        gcovr --root ../ --xml-pretty --xml ${{ github.workspace }}/build/coverage.xml --gcov-executable '${{ matrix.gcov_executable }}'
+
+    - name: Coverage - Collect on Windows
+      if: ${{ contains(matrix.os, 'windows') && matrix.build_type == 'Debug'}}
+      working-directory: ${{ github.workspace }}
+      run: |
+        OpenCppCoverage.exe --export_type cobertura:${{ github.workspace }}\build\coverage.xml --cover_children --excluded_sources "test\\" --excluded_sources "build\\" --sources "${{ github.workspace }}\src" --sources "${{ github.workspace }}\include" -- ${{ github.workspace }}\build\test\Debug\${{ env.PROJECT_NAME }}Tests.exe
+
+    - name: Coverage - Check
+      if: ${{ matrix.build_type == 'Debug'}}
+      uses: ./.github/coverage
+      with:
+        # Path to the Cobertura XML report.
+        path: ./build
+        # Publish the rendered output as a PR comment
+        publish: true
+        # Separate comment for each job in matrix
+        comment_header: "## 🧪 Coverage for ${{matrix.os}} ${{matrix.cpp_compiler}} ${{matrix.generator}}"
+        # Minimum total coverage, if you want to the
+        # workflow to enforce it as a standard.
+        # This has no effect if the `fail` arg is set to `false`.
+        min: 75
+        # Fail the workflow if the minimum code coverage
+        # reuqirements are not satisfied.
+        fail_min: true
+        # Diff with base branch
+        diff: ${{ github.event_name == 'pull_request' }}
+        # Fail if coverage decreased
+        fail_diff_decrease: ${{ github.event_name == 'pull_request' }}
+        # Unique name of coverage artifact to upload/download.
+        # Use matrix delails to make it unique,
+        # because current workflow generates multiple coverage reports for different configurations
+        artifact_name: "${{matrix.os}} ${{matrix.cpp_compiler}} ${{matrix.generator}}"
+
+    - name: CPack
+      if: matrix.package_generator != ''
+      working-directory: ./build
+      run: |
+        cpack -C ${{matrix.build_type}} -G ${{matrix.package_generator}}
+
+    - name: Upload package artifact
+      if: matrix.package_generator != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: "package-${{matrix.os}}-${{matrix.cpp_compiler}}-${{matrix.generator}}"
+        path: build/*-Release-*.*
+
+  tag_and_release:
+    name: Tag and release
+    if: ${{ github.ref_name == 'main' && github.event_name == 'push'}}
+    runs-on: ubuntu-latest
+    needs: [prepare_new_version, build]
+    permissions:
+      # permission required to create tag
+      contents: write
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: ./.github/tag
+      id: create_tag
+      if: ${{ needs.prepare_new_version.outputs.version != needs.prepare_new_version.outputs.previous_tag }}
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        version: ${{ needs.prepare_new_version.outputs.version }}
+
+    - uses: actions/download-artifact@v5
+      with:
+        pattern: package-*
+        path: packages
+
+    - name: Publish Tagged Release
+      uses: softprops/action-gh-release@v2
+      if: ${{ needs.prepare_new_version.outputs.version != needs.prepare_new_version.outputs.previous_tag }}
+      with:
+        name: ${{ needs.prepare_new_version.outputs.version }}
+        tag_name: ${{ needs.prepare_new_version.outputs.version }}
+        generate_release_notes: true
+        files: |
+          packages/*/*-Release-*.*

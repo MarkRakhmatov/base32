@@ -1,0 +1,183 @@
+---
+name: Automated versioning
+inputs:
+  version_prefix:
+    description: version prefix
+    required: false
+    default: "v"
+  pre_release:
+    description: version pre-release suffix
+    required: false
+    default: ""
+  build:
+    description: build number
+    required: false
+    default: ""
+
+outputs:
+  previous_tag:
+    description: "Prev tag"
+    value: ${{ steps.get_latest_tag.outputs.latest_tag }}
+  version:
+    description: "Created version"
+    value: ${{ steps.ver.outputs.VERSION }}
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # fetch all history to determine the current state
+
+    - name: Get the last commit message
+      id: get_message
+      shell: bash
+      run: |
+        echo "HEAD_COMMIT_MESSAGE<<EOF" >> "$GITHUB_OUTPUT"
+        echo "$(git show -s --format=%B)" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Use the commit message
+      shell: bash
+      run: >
+        echo "The commit message was: ${{ steps.get_message.outputs.HEAD_COMMIT_MESSAGE }}"
+
+    - name: Get the latest tag via git command
+      id: get_latest_tag
+      shell: bash
+      run: echo "latest_tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+
+    - name: Extract major, minor, tag
+      id: current_ver
+      shell: python
+      run: |
+        # Extract major, minor, tag
+        import os
+
+        def isInt(s: str):
+            try:
+                int(s)
+                return True
+            except Exception as ex:
+                return False
+        def parseIntWithPrefix(s: str):
+            resultStr = ""
+            prefix = ""
+            int_found = False
+            for ch in s:
+                if isInt(ch):
+                    int_found = True
+                    resultStr += ch
+                else:
+                    if int_found:
+                        raise RuntimeError("failed to parse int")
+                    prefix += ch
+            return prefix, resultStr
+        def majMinPat(s: str):
+            parts = s.split('.')
+            if len(parts) != 3:
+                raise SystemExit(
+                    f"failed to extract version number from tag: {latest_tag}"
+                )
+            prefix, major = parseIntWithPrefix(parts[0])
+            if prefix != "" and prefix != "${{ inputs.version_prefix }}":
+                raise SystemExit(
+                    f"invalid prefix in major part of version number of tag: {latest_tag}"
+                )
+
+            prefix, minor = parseIntWithPrefix(parts[1])
+            if prefix != "":
+                raise SystemExit(
+                    f"unexpected prefix in minor part of version number of tag: {latest_tag}"
+                )
+
+            prefix, patch = parseIntWithPrefix(parts[2])
+            if prefix != "":
+                raise SystemExit(
+                    f"unexpected prefix in patch part of version number of tag: {latest_tag}"
+                )
+            return major, minor, patch
+
+        latest_tag = "${{ steps.get_latest_tag.outputs.latest_tag }}"
+        print(f"Latest tag: '{latest_tag}'")
+        if latest_tag == "":
+            latest_tag = "0.0.0"
+        parts = latest_tag.split('-')
+        major, minor, patch = majMinPat(parts[0])
+        with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+            f.write(f'MAJOR={major}\n')
+            f.write(f'MINOR={minor}\n')
+            f.write(f'PATCH={patch}\n')
+
+    - name: New version
+      id: ver
+      shell: python
+      run: |
+        # New version
+        import os
+
+        def parseHeader(header: str):
+            parts = header.split(': ')
+            if len(parts) != 2:
+                raise SystemExit(
+                    f"invalid commit header format, expected type and description seprated by ': ', got header: {header}"
+                )
+            commit_type_and_scope = parts[0]
+            if "(" in commit_type_and_scope:
+                commit_type = commit_type_and_scope.split("(")[0]
+                if ")" not in commit_type_and_scope:
+                    raise SystemExit(
+                        f"invalid commit header format, scope not closed with ')' header: {header}"
+                    )
+            known_major_types = ["api"]
+            known_minor_types = ["feat"]
+            known_patch_types = ["fix", "refactor", "chore", "build", "style", "refactor", "perf"]
+            known_notag_types = ["ci", "docs", "test"]
+
+            commit_type = commit_type_and_scope.split("(")[0]
+            if commit_type in known_major_types:
+                return 1, 0, 0
+            elif commit_type in known_minor_types:
+                return 0, 1, 0
+            elif commit_type in known_patch_types:
+                return 0, 0, 1
+            elif commit_type in known_notag_types:
+                return 0, 0, 0
+            else:
+                all_types_list = known_major_types + known_minor_types + known_patch_types
+                all_types = ", ".join(all_types_list)
+                raise SystemExit(
+                    f"uknown commit type: {commit_type}, please, use one of '{all_types}'"
+                )
+            return 0, 0, 0
+
+        commit = """${{ steps.get_message.outputs.HEAD_COMMIT_MESSAGE }}"""
+        major = ${{steps.current_ver.outputs.MAJOR}}
+        minor = ${{steps.current_ver.outputs.MINOR}}
+        patch = ${{steps.current_ver.outputs.PATCH}}
+
+        lines = commit.split('\n')
+
+        header = lines[0]
+        majDiff, minDiff, patDiff = parseHeader(header)
+        if majDiff > 0:
+            major += majDiff
+            minor = 0
+            patch = 0
+        if minDiff > 0:
+            minor += minDiff
+            patch = 0
+        if patDiff > 0:
+            patch += patDiff
+
+        pre_release = "" if "${{ inputs.pre_release }}" == "" else "-${{ inputs.pre_release }}"
+        build = "" if "${{ inputs.build }}" == "" else "+${{ inputs.build }}"
+        with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+            ver = f"${{ inputs.version_prefix }}{major}.{minor}.{patch}{pre_release}{build}"
+            f.write(f'VERSION={ver}\n')
+            print(f"VERSION: '{ver}'")
+            skip_tag_creation = majDiff + minDiff + patDiff == 0
+            if skip_tag_creation:
+                print("SKIP_TAG_CREATION: no diff")
+            f.write(f'SKIP_TAG_CREATION={"true" if skip_tag_creation else "false"}\n')

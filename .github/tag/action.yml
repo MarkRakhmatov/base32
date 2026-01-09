@@ -1,0 +1,36 @@
+---
+name: Create Tag
+inputs:
+  token:
+    description: Github token to use to push tag.
+    required: false
+    default: ${{ github.token }}
+  version:
+    description: version
+    required: true
+
+outputs:
+  tag:
+    description: "Created tag"
+    value: ${{ steps.create_tag_step.outputs.NEW_TAG }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up git config
+      shell: bash
+      run: |
+        git config user.name "Tagger"
+        git config user.email "tagger.actions@github.com"
+
+    - name: Create and Push Tag
+      id: create_tag_step
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+
+        git tag $VERSION
+        git push origin $VERSION # Explicitly push the new tag to the remote
+        echo "NEW_TAG=$VERSION" >> $GITHUB_OUTPUT
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}

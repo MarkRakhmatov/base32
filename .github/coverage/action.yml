@@ -1,0 +1,251 @@
+---
+name: Code Coverage Report
+inputs:
+  token:
+    description: Github token to use to get target branch coverage report and publish comment.
+    required: false
+    default: ${{ github.token }}
+  path:
+    description: Path to the Cobertura coverage XML report.
+    required: false
+    default: .
+  report_name:
+    description: Filename of the Cobertura coverage XML report.
+    required: false
+    default: coverage.xml
+  artifact_name:
+    description: Unique name of coverage artifact to upload/download.
+    required: false
+    default: coverage
+  min:
+    description: The minimum allowed coverage percentage, as a real number.
+    required: false
+    default: 0
+  fail_min:
+    description: Fail the action when the minimum coverage was not met.
+    required: false
+    default: true
+  diff:
+    description: Load cobertura report from target branch and create diff report.
+    required: false
+    default: true
+  fail_diff_decrease:
+    description: Fail the action when the coverage decrease.
+    required: false
+    default: false
+  publish:
+    description: Publish the coverage report as an issue comment.
+    required: false
+    default: false
+  comment_header:
+    description: Coverage comment header, diplayed on top of PR comment.
+    required: false
+    default: "## 🧪 Coverage Summary"
+
+runs:
+  using: composite
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if ${{ inputs.diff == 'true' && github.base_ref == ''}}; then
+          echo -e "\e[31mError:\e[0m"
+          echo "Diff requested, but base ref is empty, please use this action ONLY in pull requests"
+          exit 1
+        fi
+        if ${{ inputs.min < 0 || github.min > 100 }}; then
+          echo -e "\e[31mError:\e[0m"
+          echo "min value should be in range [0, 100], provided value ${{ inputs.min }}"
+          exit 1
+        fi
+        if ${{ inputs.diff == 'false' && inputs.fail_diff_decrease == 'true' }}; then
+          echo "::warning::fail_diff_decrease set to 'true', but diff is set to 'false'"
+        fi
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install pycobertura
+      shell: bash
+      run: |
+        python -m pip install pycobertura==3.0.0
+
+    - name: Generate text report
+      shell: bash
+      run: |
+        pycobertura show ${{ inputs.path }}/${{ inputs.report_name }} --format markdown --output .coverage-output
+        cat .coverage-output
+
+    - name: Get base branch last run id
+      shell: bash
+      id: base-run-id
+      if: ${{ inputs.diff == 'true' }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        RUN_ID=$(gh run list --branch ${{github.base_ref}} --workflow ci.yml --limit 1 --json databaseId -q '.[0].databaseId')
+        echo "TARGET_BRANCH_RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
+
+    - name: Download ${{github.base_ref}} cobertura artifact
+      id: download-baseline-cobertura
+      if: ${{ inputs.diff == 'true' }}
+      # if artifact not found, continue
+      continue-on-error: true
+      uses: actions/download-artifact@v4
+      with:
+        github-token: ${{ github.token }}
+        run-id: ${{steps.base-run-id.outputs.TARGET_BRANCH_RUN_ID}}
+        name: ${{inputs.artifact_name}}
+        path: coverage-action/prev
+
+    - name: Upload cobertura artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{inputs.artifact_name}}
+        path: ${{inputs.path}}/${{ inputs.report_name }}
+
+    - name: Generate diff report
+      shell: bash
+      id: gen-diff-report
+      if: ${{inputs.diff == 'true' && steps.download-baseline-cobertura.outcome != 'failure'}}
+      run: |
+        pycobertura diff --no-color --no-source --format markdown coverage-action/prev/coverage.xml ${{ inputs.path }}/${{ inputs.report_name }} \
+        --output .coverage-output-diff && pycobertura_status=$? || pycobertura_status=$?
+        echo "PYCOBERTURA_STATUS=$pycobertura_status" >> $GITHUB_OUTPUT
+        if [ "$pycobertura_status" -eq 1 ]; then
+          echo "\e[31mPycobertura exception occurred.\e[0m"
+          exit 1
+        fi
+        cat .coverage-output-diff
+
+    - name: Get total coverage
+      id: total-coverage
+      shell: python
+      run: |
+        # Get total coverage
+        import os
+        def read_file_backwards(f):
+            f.seek(0, os.SEEK_END)  # Go to the end of the file
+            position = f.tell()
+            buffer = ""
+            while position >= 0:
+                f.seek(position)
+                byte = f.read(1)
+                if byte == '\n' and buffer:
+                    yield buffer[::-1]
+                    buffer = ""
+                else:
+                    buffer += byte
+                position -= 1
+            if buffer: # Yield any remaining buffer content
+                yield buffer[::-1]
+
+        def readLastLine(filename: str) -> str:
+            with open(filename, 'r') as t:
+                lastLine = ""
+                for line in read_file_backwards(t):
+                    lastLine = line.strip()
+                    if (lastLine == ""):
+                        continue
+                    return lastLine
+            return ""
+
+        # input example:
+        # | TOTAL                |       7 |      0 | 100.00% |           |
+        def parseTotal(lastLine: str) -> float:
+            percentIndex = 4
+            return float(lastLine.split("|")[percentIndex].strip()[0:-1])
+
+        lastLine = readLastLine('.coverage-output')
+        if lastLine == "":
+            raise SystemExit(
+                "Failed to read total coverage from file"
+            )
+
+        total = parseTotal(lastLine)
+        with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+            f.write(f'TOTAL_COVERAGE={total:.2f}\n')
+        if "${{inputs.diff}}" == "true" and "${{ steps.gen-diff-report.outputs.PYCOBERTURA_STATUS }}" != "1" and "${{steps.download-baseline-cobertura.outcome}}" != "failure":
+            lastLineDiff = readLastLine('.coverage-output-diff')
+            if lastLineDiff == "":
+                raise SystemExit(
+                    "Failed to read total coverage from file"
+                )
+
+            diffTotal = parseTotal(lastLineDiff)
+            with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+                f.write(f'TOTAL_DIFF_COVERAGE={diffTotal:.2f}\n')
+
+    - name: Prepare coverage comment
+      shell: python
+      run: |
+        # Prepare coverage comment
+        with open(".coverage-output-message", 'w', encoding="utf-8") as f:
+            f.write("${{ inputs.comment_header }}\n\n")
+            f.write("### Results for latest commit: ${{ github.sha }}")
+            f.write("\n\n")
+            with open(".coverage-output", "r") as coverageTable:
+                for line in coverageTable:
+                    f.write(line)
+            f.write("\n\n")
+            f.write("_Minimum allowed coverage is \`${{ inputs.min }}%\`_\n")
+            f.write("\n\n")
+            if "${{inputs.diff}}" == "true" and "${{ steps.gen-diff-report.outputs.PYCOBERTURA_STATUS }}" != "1" and "${{steps.download-baseline-cobertura.outcome}}" != "failure":
+                f.write("### Coverage diff")
+                f.write("\n\n")
+                with open(".coverage-output-diff", "r") as coverageTable:
+                    for line in coverageTable:
+                        f.write(line)
+                f.write("\n\n")
+                if "${{steps.download-baseline-cobertura.outcome}}" != "failure":
+                    if "${{ steps.gen-diff-report.outputs.PYCOBERTURA_STATUS }}" == "2":
+                        f.write("⚠ Code changes increased the number of uncovered lines in at least one file.\n")
+                    if "${{ steps.gen-diff-report.outputs.PYCOBERTURA_STATUS }}" == "3":
+                        f.write("🫤 Code changes introduced new uncovered statements despite overall coverage improvement.\n")
+            f.write("\n\n")
+            f.write(":recycle: This comment has been updated with latest results")
+
+    - name: Post as comment
+      if: contains(inputs.publish, 'true')
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        header: ${{ inputs.comment_header }}
+        path: .coverage-output-message
+
+    - name: Check min
+      shell: bash
+      if: contains(inputs.fail_min, 'true') && (fromJSON(steps.total-coverage.outputs.TOTAL_COVERAGE) < inputs.min)
+      run: |
+        echo -e "\e[31mError:\e[0m"
+        echo "Total Coverage of ${{ steps.total-coverage.outputs.TOTAL_COVERAGE }}% falls below minimum of ${{inputs.min}}%"
+        exit 1
+
+    - name: Check coverage decrease
+      shell: bash
+      if: ${{ inputs.diff == 'true' && steps.download-baseline-cobertura.outcome != 'failure' && inputs.fail_diff_decrease == 'true' && (fromJSON(steps.total-coverage.outputs.TOTAL_DIFF_COVERAGE) < 0) }}
+      run: |
+        echo -e "\e[31mError:\e[0m"
+        echo "Total Coverage is decreased: ${{ steps.total-coverage.outputs.TOTAL_DIFF_COVERAGE }}%"
+        if [[ "${{ steps.gen-diff-report.outputs.PYCOBERTURA_STATUS }}" == "2" ]]
+        then {
+          echo "Code changes increased the number of uncovered lines in at least one file."
+          exit 1
+        }
+        fi
+        if [[ "${{ steps.gen-diff-report.outputs.PYCOBERTURA_STATUS }}" == "3" ]]
+        then {
+          echo "Code changes introduced new uncovered statements despite overall coverage improvement."
+          exit 1
+        }
+        fi
+        exit 1
+
+    - name: Clean up intermediate files
+      shell: bash
+      if: always()
+      run: |
+        rm -rf coverage-action .coverage-output \
+          .coverage-output-diff \
+          .coverage-output-diff-message
