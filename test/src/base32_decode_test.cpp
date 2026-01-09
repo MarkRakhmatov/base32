@@ -113,6 +113,14 @@ suite<"decode"> b32_decode = [] {
     expect(binary.empty());
   };
 
+  test("whitespace_string") = [] {
+    base32::error err{};
+
+    const auto binary = base32::decode(" ", &err);
+    expect(err == base32::error::NO_ERROR);
+    expect(binary.empty());
+  };
+
   test("byte_array_all_zeroes") = [] {
     base32::error err{};
     const char *token = "AAAAAAA=";
