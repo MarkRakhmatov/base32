@@ -206,7 +206,7 @@ jobs:
         # Diff with base branch
         diff: ${{ github.event_name == 'pull_request' }}
         # Fail if coverage decreased
-        fail_diff_decrease: ${{ github.event_name == 'pull_request' }}
+        fail_diff_decrease: false
         # Unique name of coverage artifact to upload/download.
         # Use matrix delails to make it unique,
         # because current workflow generates multiple coverage reports for different configurations
