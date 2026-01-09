@@ -242,6 +242,7 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         version: ${{ needs.prepare_new_version.outputs.version }}
+        pre_release: "alpha"
 
     - uses: actions/download-artifact@v7
       with:

@@ -5,13 +5,8 @@
 #include <array>
 #include <ranges>
 
-
-#ifdef _MSC_VER
-#  define strdup _strdup
-#endif
-
-constexpr size_t BITS_PER_BYTE = 8;
-constexpr size_t BITS_PER_B32_BLOCK = 5;
+constexpr uint8_t BITS_PER_BYTE = 8;
+constexpr uint8_t BITS_PER_B32_BLOCK = 5;
 
 // 64 MB should be more than enough
 constexpr size_t MAX_ENCODE_INPUT_LEN = 64 * 1024 * 1024;
@@ -22,8 +17,8 @@ constexpr size_t MAX_DECODE_BASE32_INPUT_LEN = ((MAX_ENCODE_INPUT_LEN * 8 + 4) /
 
 constexpr std::array<uint8_t, 33> b32_alphabet{"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"};
 
-constexpr std::array<int, 128> build_positions_in_alphabet() {
-  std::array<int, 128> table{};
+constexpr std::array<uint8_t, 128> build_positions_in_alphabet() {
+  std::array<uint8_t, 128> table{};
   table.fill(-1);
 
   for(size_t i = 0; i < std::size(b32_alphabet); ++i) {
@@ -33,7 +28,7 @@ constexpr std::array<int, 128> build_positions_in_alphabet() {
   return table;
 }
 
-constexpr std::array<int, 128> positions_in_alphabet = build_positions_in_alphabet();
+constexpr std::array<uint8_t, 128> positions_in_alphabet = build_positions_in_alphabet();
 
 constexpr std::array<bool, 128> build_alphabet_lookup_table() {
   std::array<bool, 128> table{};
@@ -60,9 +55,9 @@ namespace base32 {
 
   // The encoding process represents 40-bit groups of input bits as output strings of 8 encoded
   // characters. The input data must be null terminated.
-  std::string encode(const Bytes&user_data, error *err_code) {
+  std::string encode(const Bytes&user_data, error &err_code) {
     if (user_data.size() > MAX_ENCODE_INPUT_LEN) {
-      *err_code = error::INVALID_USER_INPUT;
+      err_code = error::MAX_LENGTH_EXCEEDED;
       return {};
     }
 
@@ -95,7 +90,7 @@ namespace base32 {
       }
 
       for (int shift = 35; shift >= 0; shift -= 5) {
-        encoded_data[j++] = (char)b32_alphabet[(quintuple >> shift) & 0x1F];
+        encoded_data[j++] = static_cast<char>(b32_alphabet[(quintuple >> shift) & 0x1F]);
       }
     }
 
@@ -103,14 +98,14 @@ namespace base32 {
       encoded_data[output_length + i] = '=';
     }
 
-    *err_code = error::NO_ERROR;
+    err_code = error::NO_ERROR;
 
     return encoded_data;
   }
 
-  Bytes decode(std::string_view user_data, error *err_code) {
+  Bytes decode(std::string_view user_data, error &err_code) {
     if (user_data.size() > MAX_DECODE_BASE32_INPUT_LEN) {
-      *err_code = error::INVALID_USER_INPUT;
+      err_code = error::MAX_LENGTH_EXCEEDED;
       return {};
     }
 
@@ -125,37 +120,37 @@ namespace base32 {
       }
     }
 
-    size_t output_length = user_data_chars > 0? (5*user_data_chars - 4)/8: 0;  // round up
+    const size_t output_length = user_data_chars > 0? (5*user_data_chars - 4)/8: 0;  // round up
     Bytes decoded_data;
     decoded_data.reserve(output_length);
 
     uint8_t mask{0};
     uint8_t current_byte{0};
-    size_t bits_left{8};
+    uint8_t bits_left{8};
     for (size_t i = 0; i < user_data_chars; i++) {
       if (user_data[i] == ' ') {
         continue;
       }
       else if (!in_alphabet(user_data[i]))
       {
-        *err_code = error::INVALID_B32_INPUT;
+        err_code = error::INVALID_B32_INPUT;
         return {};
       }
-      const int char_index = positions_in_alphabet[(uint8_t)user_data[i]];
+      const uint8_t char_index = positions_in_alphabet[user_data[i]];
       if (bits_left > BITS_PER_B32_BLOCK) {
-        mask = (uint8_t)char_index << (bits_left - BITS_PER_B32_BLOCK);
+        mask = char_index << (bits_left - BITS_PER_B32_BLOCK);
         current_byte |= mask;
         bits_left -= BITS_PER_B32_BLOCK;
       } else {
-        mask = (uint8_t)char_index >> (BITS_PER_B32_BLOCK - bits_left);
+        mask = char_index >> (BITS_PER_B32_BLOCK - bits_left);
         current_byte |= mask;
         decoded_data.push_back(current_byte);
-        current_byte = (uint8_t)(char_index << (BITS_PER_BYTE - BITS_PER_B32_BLOCK + bits_left));
+        current_byte = (char_index << (BITS_PER_BYTE - BITS_PER_B32_BLOCK + bits_left));
         bits_left += BITS_PER_BYTE - BITS_PER_B32_BLOCK;
       }
     }
 
-    *err_code = error::NO_ERROR;
+    err_code = error::NO_ERROR;
 
     return decoded_data;
   }
