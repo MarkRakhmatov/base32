@@ -23,7 +23,7 @@ constexpr std::array<uint8_t, 128> build_positions_in_alphabet() {
   table.fill(std::numeric_limits<uint8_t>::max());
 
   for(size_t i = 0; i < std::size(b32_alphabet); ++i) {
-    table[b32_alphabet[i]] = static_cast<uint8_t>(i);
+    table[b32_alphabet[i]] = (uint8_t)i;
   }
 
   return table;
