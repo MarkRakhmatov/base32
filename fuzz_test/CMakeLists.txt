@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.27...4.2.0)
 
-set(TESTED_PROJECT_NAME CppStaticLib)
+set(TESTED_PROJECT_NAME base32)
 
 project(${TESTED_PROJECT_NAME}FuzzTests LANGUAGES CXX)
 

@@ -1,9 +1,9 @@
-# CppStaticLib
+# base32
 
-[![ci](https://github.com/MarkRakhmatov/CppStaticLibTemplate/actions/workflows/ci.yml/badge.svg)](https://github.com/MarkRakhmatov/CppStaticLibTemplate/actions/workflows/ci.yml)
+[![ci](https://github.com/MarkRakhmatov/base32/actions/workflows/ci.yml/badge.svg)](https://github.com/MarkRakhmatov/base32/actions/workflows/ci.yml)
 
-## About
-C++ 23 static library template
+## About base32
+C++ Base32 encoding/decoding
 
 ### By default:
 * Warnings as errors
@@ -27,7 +27,7 @@ api: remove deprecated v1 API
 api(parser): hide parser API from public interface
 ```
 
-2. New feature or backward compatible API change (will increment minor version and reset patch to 0)
+2. New feature or backward compatible API change (will increment major version)
 ```
 feat: introduce parser v2 API
 feat(parser): extend parser v2 API public interface
@@ -51,3 +51,19 @@ refactor(parser): reduce heap allocations in parser v2 API
 | MSVC |:heavy_check_mark: | |
 | clang | | :heavy_check_mark: |
 | gcc | | :heavy_check_mark: |
+
+### Usage
+#### CMake
+To use base32 library in cmake project:
+
+```
+CPMAddPackage("gh:MarkRakhmatov/base32@v0.1.0")
+```
+
+Link base32 library to your target
+```
+target_link_libraries(your_target PRIVATE base32)
+```
+
+#### Examples
+TODO: add code examples
