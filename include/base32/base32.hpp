@@ -1,16 +1,23 @@
 #pragma once
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
 
-namespace csl {
-  std::string getString();
 
-  constexpr int factorialConstexpr(int input) noexcept {
-    if (input < 2) {
-      return 1;
-    }
+namespace base32 {
+  enum class error: uint8_t {
+    NO_ERROR = 0,
+    INVALID_B32_INPUT,
+    MEMORY_ALLOCATION_ERROR,
+    INVALID_USER_INPUT,
+    EMPTY_STRING
+  };
 
-    return input * factorialConstexpr(input - 1);
-  }
+  using Bytes = std::vector<uint8_t>;
 
-  int factorial(int input) noexcept;
-}  // namespace csl
+  std::string encode(const Bytes&user_data, error *err_code);
+
+  Bytes decode(std::string_view user_data, error *err_code);
+}  // namespace base32
