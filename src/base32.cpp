@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <array>
+#include <limits>
 #include <ranges>
 
 constexpr uint8_t BITS_PER_BYTE = 8;
@@ -19,10 +20,10 @@ constexpr std::array<uint8_t, 33> b32_alphabet{"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567
 
 constexpr std::array<uint8_t, 128> build_positions_in_alphabet() {
   std::array<uint8_t, 128> table{};
-  table.fill(-1);
+  table.fill(std::numeric_limits<uint8_t>::max());
 
   for(size_t i = 0; i < std::size(b32_alphabet); ++i) {
-    table[b32_alphabet[i]] = static_cast<int>(i);
+    table[b32_alphabet[i]] = static_cast<uint8_t>(i);
   }
 
   return table;
