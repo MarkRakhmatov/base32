@@ -9,7 +9,6 @@ on:
 
 env:
   CLANG_COMPILER: "clang++"
-  CLANG_TIDY_VERSION: "19.1.1"
 
 jobs:
   prepare_new_version:
@@ -131,7 +130,7 @@ jobs:
         ninja: ${{ contains(matrix.generator, 'Ninja' )}}
         vcpkg: false
         ccache: true
-        clangtidy: ${{ contains(matrix.cpp_compiler, 'clang' )}}
+        clangtidy: ${{ contains(matrix.cpp_compiler, 'clang') }}
 
         cppcheck: ${{ !contains(matrix.cpp_compiler, 'clang' )}}
 
@@ -242,6 +241,7 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         version: ${{ needs.prepare_new_version.outputs.version }}
+        pre_release: "alpha"
 
     - uses: actions/download-artifact@v7
       with:

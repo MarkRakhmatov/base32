@@ -17,7 +17,7 @@ constexpr base32::Bytes stringToBytes(std::string_view str) {
 suite<"b32_encode"> b32_encode = [] {
   test("empty_input") = [] {
     base32::error err{};
-    const auto ek = base32::encode({}, &err);
+    const auto ek = base32::encode({}, err);
 
     expect(ek.empty());
   };
@@ -27,7 +27,7 @@ suite<"b32_encode"> b32_encode = [] {
     const char *expected_enc = "AAAAAAA=";
 
     const auto secret_bytes = base32::Bytes{0, 0, 0, 0};
-    const auto enc = base32::encode(secret_bytes, &err);
+    const auto enc = base32::encode(secret_bytes, err);
 
     expect(enc == expected_enc);
   };
@@ -36,7 +36,7 @@ suite<"b32_encode"> b32_encode = [] {
     base32::error err{};
     const char *expected_enc = "GAYDAMA=";
 
-    const auto enc = base32::encode(stringToBytes("0000"), &err);
+    const auto enc = base32::encode(stringToBytes("0000"), err);
 
     expect(enc == expected_enc);
   };
@@ -46,7 +46,7 @@ suite<"b32_encode"> b32_encode = [] {
     const auto k = stringToBytes("ADFG413!£$%&&((/?^çé*[]#)-.,|<>+");
     const char *k_enc = "IFCEMRZUGEZSDQVDEQSSMJRIFAXT6XWDU7B2SKS3LURSSLJOFR6DYPRL";
 
-    const auto ek = base32::encode(k, &err);
+    const auto ek = base32::encode(k, err);
 
     expect(ek == k_enc);
   };
@@ -56,7 +56,7 @@ suite<"b32_encode"> b32_encode = [] {
     const auto k = stringToBytes("ADFG413!£$%&&((/?^çé*[]#)-.,|<>+");
     const char *k_enc = "IFCEMRZUGEZSDQVDEQSSMJRIFAXT6XWDU7B2SKS3LURSSLJOFR6DYPRL";
 
-    const auto ek = base32::encode(k, &err);
+    const auto ek = base32::encode(k, err);
 
     expect(ek == k_enc);
   };
@@ -68,7 +68,7 @@ suite<"b32_encode"> b32_encode = [] {
         = {"", "MY======", "MZXQ====", "MZXW6===", "MZXW6YQ=", "MZXW6YTB", "MZXW6YTBOI======"};
 
     for (int i = 0; i < 7; i++) {
-      const auto ek = base32::encode(stringToBytes(k[i]), &err);
+      const auto ek = base32::encode(stringToBytes(k[i]), err);
       expect(ek == k_enc[i]);
     }
   };
@@ -80,7 +80,7 @@ suite<"b32_encode"> b32_encode = [] {
         = {"", "MY======", "MZXQ====", "MZXW6===", "MZXW6YQ=", "MZXW6YTB", "MZXW6YTBOI======"};
 
     for (int i = 0; i < 7; i++) {
-      const auto ek = base32::encode(stringToBytes(k[i]), &err);
+      const auto ek = base32::encode(stringToBytes(k[i]), err);
       expect(ek == k_enc[i]);
     }
   };
@@ -92,7 +92,7 @@ suite<"b32_encode"> b32_encode = [] {
         = {"", "MY======", "MZXQ====", "MZXW6===", "MZXW6YQ=", "MZXW6YTB", "MZXW6YTBOI======"};
 
     for (int i = 0; i < 7; i++) {
-      const auto ek = base32::encode(stringToBytes(k[i]), &err);
+      const auto ek = base32::encode(stringToBytes(k[i]), err);
       expect(ek == k_enc[i]);
     }
   };
@@ -102,16 +102,16 @@ suite<"b32_encode"> b32_encode = [] {
     size_t len = 65 * 1024 * 1024;
     const auto k = stringToBytes(std::string(len, ' '));
 
-    const auto ek = base32::encode(k, &err);
+    const auto ek = base32::encode(k, err);
     expect(ek.empty());
-    expect(err == base32::error::INVALID_USER_INPUT);
+    expect(err == base32::error::MAX_LENGTH_EXCEEDED);
   };
 
   test("test_input_all_zeroes") = [] {
     base32::error err{};
     const base32::Bytes secret_bytes{0, 0, 0, 0};
 
-    const auto encoded_str = base32::encode(secret_bytes, &err);
+    const auto encoded_str = base32::encode(secret_bytes, err);
 
     expect(err == base32::error::NO_ERROR);
     expect(encoded_str == "AAAAAAA=");
