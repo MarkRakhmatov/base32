@@ -1,6 +1,5 @@
 ---
 Checks: "*,
-        modernize-avoid-c-style-cast,
         -abseil-*,
         -altera-*,
         -android-*,

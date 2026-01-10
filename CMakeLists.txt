@@ -74,7 +74,7 @@ target_include_directories(
 if(${PROJECT_NAME}_ENABLE_CODE_ANALYSIS)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     message(STATUS "Clang compiler detected. Integrating clang-tidy")
-    set_target_properties(${PROJECT_NAME} PROPERTIES CXX_CLANG_TIDY "clang-tidy;")
+    set_target_properties(${PROJECT_NAME} PROPERTIES CXX_CLANG_TIDY "clang-tidy")
   else()
     message(STATUS "Integrating Cppcheck")
     find_program(CPPCHECK_EXECUTABLE NAMES cppcheck REQUIRED)

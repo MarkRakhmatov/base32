@@ -1,55 +1,65 @@
 #include "base32/base32.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <array>
 #include <limits>
 #include <ranges>
+#include <string>
+#include <string_view>
+#include <utility>
 
 constexpr uint8_t BITS_PER_BYTE = 8;
-constexpr uint8_t BITS_PER_B32_BLOCK = 5;
+constexpr uint8_t BYTES_PER_B32_BLOCK = 5;
+constexpr uint8_t BITS_PER_B32_BLOCK = BITS_PER_BYTE*BYTES_PER_B32_BLOCK;
+
+constexpr uint8_t B32_PADDING_6 = 6;
+constexpr uint8_t B32_PADDING_4 = 4;
+constexpr uint8_t B32_PADDING_3 = 3;
+constexpr uint8_t B32_PADDING_1 = 1;
 
 // 64 MB should be more than enough
-constexpr size_t MAX_ENCODE_INPUT_LEN = 64 * 1024 * 1024;
+constexpr size_t MAX_ENCODE_INPUT_LEN = 64ULL * 1024 * 1024;
 
 // if 64 MB of data is encoded than it should be also possible to decode it. That's why a bigger
 // input is allowed for decoding
-constexpr size_t MAX_DECODE_BASE32_INPUT_LEN = ((MAX_ENCODE_INPUT_LEN * 8 + 4) / 5);
+constexpr size_t MAX_DECODE_BASE32_INPUT_LEN = ((MAX_ENCODE_INPUT_LEN * BITS_PER_BYTE + 4) / BYTES_PER_B32_BLOCK);
 
 constexpr std::array<uint8_t, 33> b32_alphabet{"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"};
-
-constexpr std::array<uint8_t, 128> build_positions_in_alphabet() {
-  std::array<uint8_t, 128> table{};
+constexpr uint8_t MAX_ALPHABET_POSIONS = 128;
+constexpr std::array<uint8_t, MAX_ALPHABET_POSIONS> build_positions_in_alphabet() {
+  std::array<uint8_t, MAX_ALPHABET_POSIONS> table{};
   table.fill(std::numeric_limits<uint8_t>::max());
 
   for(size_t i = 0; i < std::size(b32_alphabet); ++i) {
-    table[b32_alphabet[i]] = (uint8_t)i;
+    table.at(b32_alphabet.at(i)) = (uint8_t)i;
   }
 
   return table;
 }
 
-constexpr std::array<uint8_t, 128> positions_in_alphabet = build_positions_in_alphabet();
+constexpr std::array<uint8_t, MAX_ALPHABET_POSIONS> positions_in_alphabet = build_positions_in_alphabet();
 
-constexpr std::array<bool, 128> build_alphabet_lookup_table() {
-  std::array<bool, 128> table{};
-  for (const uint8_t p: b32_alphabet) {
-    table[p] = 1;
+constexpr std::array<bool, MAX_ALPHABET_POSIONS> build_alphabet_lookup_table() {
+  std::array<bool, MAX_ALPHABET_POSIONS> table{};
+  for (const uint8_t pos: b32_alphabet) {
+    table.at(pos) = true;
   }
-  table['='] = 1;
+  table['='] = true;
 
   return table;
 }
 
-constexpr std::array<bool, 128> alphabet_lookup_table = build_alphabet_lookup_table();
+constexpr std::array<bool, MAX_ALPHABET_POSIONS> alphabet_lookup_table = build_alphabet_lookup_table();
 
 
-constexpr bool in_alphabet(char c) {
-  if (c < 0) {
+constexpr bool in_alphabet(char val) {
+  if (val < 0) {
     return false;
   }
 
-  return alphabet_lookup_table[c];
+  return alphabet_lookup_table.at(val);
 }
 
 namespace base32 {
@@ -62,40 +72,45 @@ namespace base32 {
       return {};
     }
 
-    size_t user_data_chars = user_data.size();
-    size_t total_bits = user_data_chars*8;
-    int num_of_equals = 0;
-    switch (total_bits % 40) {
-      case 8:
-        num_of_equals = 6;
+    const size_t user_data_chars = user_data.size();
+    const size_t total_bits = user_data_chars*8;
+    uint8_t num_of_equals = 0;
+    switch (total_bits % BITS_PER_B32_BLOCK) {
+      case 0:
         break;
-      case 16:
-        num_of_equals = 4;
+      case BITS_PER_BYTE:
+        num_of_equals = B32_PADDING_6;
         break;
-      case 24:
-        num_of_equals = 3;
+      case uint8_t(2*BITS_PER_BYTE):
+        num_of_equals = B32_PADDING_4;
         break;
-      case 32:
-        num_of_equals = 1;
+      case uint8_t(3*BITS_PER_BYTE):
+        num_of_equals = B32_PADDING_3;
         break;
+      case uint8_t(4*BITS_PER_BYTE):
+        num_of_equals = B32_PADDING_1;
+        break;
+      default:
+        std::unreachable();
     }
-
-    const size_t output_length = (user_data_chars * 8 + 4) / 5;
+    const size_t output_length = (user_data_chars * 8 + 4) / BYTES_PER_B32_BLOCK;
     std::string encoded_data(output_length + num_of_equals, '\0');
 
-    for (size_t i = 0, j = 0; i < user_data_chars; i += 5) {
+    for (size_t i = 0, j = 0; i < user_data_chars; i += BYTES_PER_B32_BLOCK) {
       uint64_t quintuple = 0;
 
-      for (size_t k = 0; k < 5; k++) {
-        quintuple = (quintuple << 8) | (i + k < user_data_chars ? user_data[i + k] : 0);
+      for (size_t k = 0; k < BYTES_PER_B32_BLOCK; k++) {
+        quintuple = (quintuple << BITS_PER_BYTE) | (i + k < user_data_chars ? user_data.at(i + k) : 0U);
       }
 
-      for (int shift = 35; shift >= 0; shift -= 5) {
-        encoded_data[j++] = static_cast<char>(b32_alphabet[(quintuple >> shift) & 0x1F]);
+      constexpr uint64_t mask = 0x1F;
+
+      for (int8_t shift = BITS_PER_B32_BLOCK - BYTES_PER_B32_BLOCK; shift >= 0; shift -= BYTES_PER_B32_BLOCK) {
+        encoded_data.at(j++) = static_cast<char>(b32_alphabet.at((quintuple >> static_cast<uint8_t>(shift)) & mask));
       }
     }
 
-    for (int i = 0; i < num_of_equals; i++) {
+    for (uint8_t i = 0; i < num_of_equals; i++) {
       encoded_data[output_length + i] = '=';
     }
 
@@ -127,7 +142,7 @@ namespace base32 {
 
     uint8_t mask{0};
     uint8_t current_byte{0};
-    uint8_t bits_left{8};
+    uint8_t bits_left{BITS_PER_BYTE};
     for (size_t i = 0; i < user_data_chars; i++) {
       if (user_data[i] == ' ') {
         continue;
@@ -137,17 +152,17 @@ namespace base32 {
         err_code = error::INVALID_B32_INPUT;
         return {};
       }
-      const uint8_t char_index = positions_in_alphabet[user_data[i]];
-      if (bits_left > BITS_PER_B32_BLOCK) {
-        mask = char_index << (bits_left - BITS_PER_B32_BLOCK);
+      const uint8_t char_index = positions_in_alphabet.at(user_data[i]);
+      if (bits_left > BYTES_PER_B32_BLOCK) {
+        mask = char_index << static_cast<uint8_t>(bits_left - BYTES_PER_B32_BLOCK);
         current_byte |= mask;
-        bits_left -= BITS_PER_B32_BLOCK;
+        bits_left -= BYTES_PER_B32_BLOCK;
       } else {
-        mask = char_index >> (BITS_PER_B32_BLOCK - bits_left);
+        mask = char_index >> static_cast<uint8_t>(BYTES_PER_B32_BLOCK - bits_left);
         current_byte |= mask;
         decoded_data.push_back(current_byte);
-        current_byte = (char_index << (BITS_PER_BYTE - BITS_PER_B32_BLOCK + bits_left));
-        bits_left += BITS_PER_BYTE - BITS_PER_B32_BLOCK;
+        current_byte = (char_index << static_cast<uint8_t>(BITS_PER_BYTE - BYTES_PER_B32_BLOCK + bits_left));
+        bits_left += BITS_PER_BYTE - BYTES_PER_B32_BLOCK;
       }
     }
 
