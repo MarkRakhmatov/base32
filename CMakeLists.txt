@@ -33,7 +33,7 @@ endif()
 include(cmake/CPM.cmake)
 
 # PackageProject.cmake will be used to make our target installable
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.8.0")
+CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.13.0")
 
 # ---- Add source files ----
 
