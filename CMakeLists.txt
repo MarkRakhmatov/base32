@@ -125,25 +125,30 @@ endif()
 # ---- Create an installable target ----
 # this allows users to install and find the library via `find_package()`.
 
-# the location where the project's version header will be placed should match the project's regular
-# header paths
-string(TOLOWER ${PROJECT_NAME}/version.h VERSION_HEADER_LOCATION)
-
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+include(GNUInstallDirs)
+
 install(
   TARGETS ${PROJECT_NAME}
   EXPORT ${PROJECT_NAME}
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES
-  DESTINATION include
+  FILE_SET HEADERS
 )
+
 install(
   EXPORT ${PROJECT_NAME}
-  FILE ${PROJECT_NAME}Config.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
   NAMESPACE ${PROJECT_NAME}::
-  DESTINATION lib/cmake/${PROJECT_NAME}
+)
+
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake COMPATIBILITY ExactVersion
+)
+
+install(FILES cmake/${PROJECT_NAME}Config.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
 
 # ---- Package project ----
