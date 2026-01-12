@@ -33,7 +33,7 @@ endif()
 include(cmake/CPM.cmake)
 
 # PackageProject.cmake will be used to make our target installable
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.8.0")
+CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.13.0")
 
 # ---- Add source files ----
 
@@ -45,6 +45,7 @@ file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
 # ---- Create static library ----
 
 add_library(${PROJECT_NAME} STATIC ${headers} ${sources})
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 23)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)

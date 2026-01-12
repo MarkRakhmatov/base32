@@ -65,7 +65,7 @@ constexpr bool in_alphabet(char val) {
 namespace base32 {
 
   // The encoding process represents 40-bit groups of input bits as output strings of 8 encoded
-  // characters. The input data must be null terminated.
+  // characters.
   std::string encode(const Bytes&user_data, error &err_code) {
     if (user_data.size() > MAX_ENCODE_INPUT_LEN) {
       err_code = error::MAX_LENGTH_EXCEEDED;
