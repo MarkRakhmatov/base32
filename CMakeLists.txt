@@ -129,7 +129,6 @@ include(GNUInstallDirs)
 
 set(INSTALL_TARGETS ${PROJECT_NAME})
 
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 install(
   TARGETS ${INSTALL_TARGETS}
   DESTINATION lib
@@ -137,11 +136,7 @@ install(
 )
 install(DIRECTORY include/${PROJECT_NAME} DESTINATION include)
 
-install(
-  EXPORT ${PROJECT_NAME}Targets
-  DESTINATION lib/cmake/${PROJECT_NAME}
-  NAMESPACE ${PROJECT_NAME}::
-)
+install(EXPORT ${PROJECT_NAME}Targets DESTINATION lib/cmake/${PROJECT_NAME})
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
@@ -159,11 +154,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
 
-export(
-  TARGETS ${PROJECT_NAME}
-  NAMESPACE ${PROJECT_NAME}::
-  FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake"
-)
+export(TARGETS ${PROJECT_NAME} FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
 
 # ---- Package project ----
 # Experience shows that explicit package naming can help make it easier to sort out potential ABI
