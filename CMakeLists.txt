@@ -20,11 +20,10 @@ option(${PROJECT_NAME}_BUILD_FUZZ_TESTS "Build fuzz tests" OFF)
 
 # ---- Include guards ----
 
-if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
-  message(
-    FATAL_ERROR
-      "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there."
-  )
+if(!PROJECT_IS_TOP_LEVEL)
+  message(STATUS "[${PROJECT_NAME}] PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
+  message(STATUS "[${PROJECT_NAME}] CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
+  message(STATUS "[${PROJECT_NAME}] is being used as a dependency (subproject).")
 endif()
 
 # ---- Add dependencies via CPM ----
@@ -63,7 +62,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE)
 
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-                         $<INSTALL_INTERFACE:include/${PROJECT_NAME}-${PROJECT_VERSION}>
+                         $<INSTALL_INTERFACE:include>
 )
 
 # ---- Static analisys ----
@@ -124,6 +123,14 @@ endif()
 
 # ---- Create an installable target ----
 # this allows users to install and find the library via `find_package()`.
+
+if(NOT PROJECT_IS_TOP_LEVEL)
+  message(
+    STATUS
+      "[${PROJECT_NAME}] skip creating of installable target and packaging, project is being used as a dependency (subproject)"
+  )
+  return()
+endif()
 
 include(GNUInstallDirs)
 
