@@ -23,7 +23,7 @@ option(${PROJECT_NAME}_BUILD_FUZZ_TESTS "Build fuzz tests" OFF)
 if(!PROJECT_IS_TOP_LEVEL)
   message(STATUS "[${PROJECT_NAME}] PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
   message(STATUS "[${PROJECT_NAME}] CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
-  message(STATUS "[${PROJECT_NAME}] is being used as a dependency (subproject).")
+  message(NOTICE "[${PROJECT_NAME}] is being used as a dependency (subproject).")
 endif()
 
 # ---- Add dependencies via CPM ----
@@ -126,8 +126,8 @@ endif()
 
 if(NOT PROJECT_IS_TOP_LEVEL)
   message(
-    STATUS
-      "[${PROJECT_NAME}] skip creating of installable target and packaging, project is being used as a dependency (subproject)"
+    NOTICE
+    "[${PROJECT_NAME}] skip creating of installable target and packaging, project is being used as a dependency (subproject)"
   )
   return()
 endif()
