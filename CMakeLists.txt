@@ -143,9 +143,20 @@ install(
   INCLUDES
   DESTINATION include/${PROJECT_NAME}
 )
+
+export(
+  TARGETS ${INSTALL_TARGETS}
+  NAMESPACE ${PROJECT_NAME}::
+  FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake"
+)
+
 install(DIRECTORY include/${PROJECT_NAME} DESTINATION include)
 
-install(EXPORT ${PROJECT_NAME}Targets DESTINATION lib/cmake/${PROJECT_NAME})
+install(
+  EXPORT ${PROJECT_NAME}Targets
+  NAMESPACE ${PROJECT_NAME}::
+  DESTINATION lib/cmake/${PROJECT_NAME}
+)
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
@@ -162,8 +173,6 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
               ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
-
-export(TARGETS ${INSTALL_TARGETS} FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
 
 # ---- Package project ----
 # Experience shows that explicit package naming can help make it easier to sort out potential ABI
