@@ -19,6 +19,12 @@ option(${PROJECT_NAME}_ENABLE_COVERAGE "Code coverage" OFF)
 option(${PROJECT_NAME}_BUILD_FUZZ_TESTS "Build fuzz tests" OFF)
 
 # ---- Include guards ----
+if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
+  message(
+    FATAL_ERROR
+      "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there."
+  )
+endif()
 
 if(!PROJECT_IS_TOP_LEVEL)
   message(STATUS "[${PROJECT_NAME}] PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
