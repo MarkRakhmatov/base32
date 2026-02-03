@@ -22,8 +22,8 @@ namespace base32 {
   constexpr uint8_t gB32Padding1 = 1;
 
   /*!
-   *  \brief gMaxEncodeInputLen
-   *  64 MB should be more than enough
+   * \brief gMaxEncodeInputLen
+   * 64 MB should be more than enough
    */
   constexpr size_t gMaxEncodeInputLen = 64ULL * 1024 * 1024;
 
@@ -91,12 +91,27 @@ namespace base32 {
     return gAlphabetLookupTable.at(val);
   }
 
-  std::string encode(const Bytes& userData, Error &errCode) {
+  /*!
+   * \brief validateEncodeInput
+   * \param userData
+   * \return
+   */
+  Error validateEncodeInput(const Bytes& userData) {
     if (userData.size() > gMaxEncodeInputLen) {
-      errCode = Error::MaxLengthExceeded;
-      return {};
+      return Error::MaxLengthExceeded;
     }
 
+    return Error::NoError;
+  }
+
+  /*!
+   * \brief getPaddingBytesCount
+   *
+   * Calculate base 32 padding to fill base 32 block (40 bits) if necessary
+   * \param userData
+   * \return
+   */
+  uint8_t getPaddingBytesCount(const Bytes& userData) {
     const size_t userDataChars = userData.size();
     const size_t totalBits = userDataChars*8;
     uint8_t numOfEquals = 0;
@@ -118,7 +133,19 @@ namespace base32 {
       default:
         std::unreachable();
     }
+
+    return numOfEquals;
+  }
+
+  std::string encode(const Bytes& userData, Error &errCode) {
+    if (const Error error = validateEncodeInput(userData); error != Error::NoError) {
+      errCode = error;
+      return {};
+    }
+
+    const size_t userDataChars = userData.size();
     const size_t outputLength = (userDataChars * 8 + 4) / gBytesPerB32Block;
+    const uint8_t numOfEquals = getPaddingBytesCount(userData);
     std::string encodedData(outputLength + numOfEquals, '\0');
 
     for (size_t i = 0, j = 0; i < userDataChars; i += gBytesPerB32Block) {
@@ -144,23 +171,48 @@ namespace base32 {
     return encodedData;
   }
 
-  Bytes decode(std::string_view userData, Error &errCode) {
+  /*!
+   * \brief validateDencodeInput
+   * \param userData
+   * \return
+   */
+  Error validateDencodeInput(std::string_view userData) {
     if (userData.size() > gMaxDecodeBasE32InputLen) {
-      errCode = Error::MaxLengthExceeded;
-      return {};
+      return Error::MaxLengthExceeded;
     }
 
+    return Error::NoError;
+  }
+
+  /*!
+   * \brief getPayloadSize
+   *
+   * Base 32 string consist of 40 bits blocks padded with '='.
+   * This function calculates payload size to allocate buffer for decoded data.
+   *
+   * \param userData
+   * \return payload size
+   */
+  size_t getPayloadSize(std::string_view userData) {
     size_t userDataChars = userData.size();
     for (auto chr: userData | std::views::reverse) {
-      // As it's not known whether data_len is with or without the +1 for the null byte, a manual
-      // check is required.
-      if (chr == '=' || chr == '\0') {
+      if (chr == '=') {
         userDataChars -= 1;
       } else {
         break;
       }
     }
 
+    return userDataChars;
+  }
+
+  Bytes decode(std::string_view userData, Error &errCode) {
+    if (const Error error = validateDencodeInput(userData); error != Error::NoError) {
+      errCode = error;
+      return {};
+    }
+
+    const size_t userDataChars = getPayloadSize(userData);
     const size_t outputLength = userDataChars > 0? (5*userDataChars - 4)/8: 0;  // round up
     Bytes decodedData;
     decodedData.reserve(outputLength);
