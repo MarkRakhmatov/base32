@@ -137,6 +137,9 @@ jobs:
         gcovr: ${{ contains(matrix.os, 'ubuntu') && matrix.build_type == 'Debug'}}
         opencppcoverage: ${{ contains(matrix.os, 'windows') && matrix.build_type == 'Debug'}}
 
+        doxygen: true
+        graphviz: true
+
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -149,6 +152,7 @@ jobs:
         -D${{ env.PROJECT_NAME }}_BUILD_TESTS=ON
         -D${{ env.PROJECT_NAME }}_ENABLE_COVERAGE:BOOL=${{ matrix.build_type == 'Debug' }}
         -D${{ env.PROJECT_NAME }}_BUILD_FUZZ_TESTS:BOOL=${{ matrix.cpp_compiler == env.CLANG_COMPILER && matrix.build_type == 'Debug' }}
+        -D${{ env.PROJECT_NAME }}_DOC=ON
         -S ${{ github.workspace }}
 
     - name: Build

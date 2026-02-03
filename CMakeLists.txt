@@ -13,10 +13,13 @@ project(
 )
 
 option(${PROJECT_NAME}_BUILD_TESTS "Build test" OFF)
+option(${PROJECT_NAME}_BUILD_FUZZ_TESTS "Build fuzz tests" OFF)
 option(${PROJECT_NAME}_ENABLE_CODE_ANALYSIS "Run static code analysis" OFF)
 option(${PROJECT_NAME}_ENABLE_COVERAGE "Code coverage" OFF)
 
-option(${PROJECT_NAME}_BUILD_FUZZ_TESTS "Build fuzz tests" OFF)
+option(${PROJECT_NAME}_DOC "Generate documentation using Doxygen" OFF)
+option(${PROJECT_NAME}_DOXYGEN_SEARCH_PATHS "Additional doxygen search paths" "")
+option(${PROJECT_NAME}_GRAPHVIZ_BIN_PATHS "Graphviz binary paths" "")
 
 # ---- Include guards ----
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
@@ -128,6 +131,67 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND ${PROJECT_NAME}_BUILD_FUZZ_TESTS)
   add_subdirectory(fuzz_test)
 endif()
 
+# Generate documentation
+if(${PROJECT_NAME}_DOC)
+  message(STATUS "${PROJECT_NAME}_DOC ON, generating documentation")
+
+  if(${PROJECT_NAME}_DOXYGEN_SEARCH_PATHS)
+    find_program(
+      DOXYGEN_EXECUTABLE doxygen NO_SYSTEM_ENVIRONMENT_PATH NO_DEFAULT_PATH
+      PATHS "${${PROJECT_NAME}_DOXYGEN_SEARCH_PATHS}"
+    )
+  endif()
+
+  if(NOT DOXYGEN_EXECUTABLE)
+    message(STATUS "DOXYGEN_EXECUTABLE not found in: ${${PROJECT_NAME}_DOXYGEN_SEARCH_PATHS}")
+    message(STATUS "Fallback to system paths search")
+    find_program(DOXYGEN_EXECUTABLE doxygen)
+
+    if(NOT DOXYGEN_EXECUTABLE)
+      message(WARNING "DOXYGEN_EXECUTABLE not found")
+      return()
+    endif()
+  endif()
+
+  message(STATUS "DOXYGEN_EXECUTABLE found: ${DOXYGEN_EXECUTABLE}")
+
+  execute_process(
+    COMMAND git describe --abbrev=0 --tags
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_LATEST_TAG
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  message(STATUS "Latest git tag of ${PROJECT_NAME}: ${${PROJECT_NAME}_GIT_LATEST_TAG}")
+
+  include(FetchContent)
+  FetchContent_Declare(
+    doxygen-awesome-css
+    URL https://github.com/jothepro/doxygen-awesome-css/archive/refs/heads/main.zip
+  )
+  FetchContent_MakeAvailable(doxygen-awesome-css)
+
+  # Save the location the files were cloned into This allows us to get the path to
+  # doxygen-awesome.css
+  FetchContent_GetProperties(doxygen-awesome-css SOURCE_DIR AWESOME_CSS_DIR)
+
+  set(DOXYGEN_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include")
+  set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc)
+  set(DOXYGEN_DOT_PATH "${${PROJECT_NAME}_GRAPHVIZ_BIN_PATHS}")
+
+  set(DOXYFILE_IN ${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile.in)
+  set(DOXYFILE_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+  configure_file(${DOXYFILE_IN} ${DOXYFILE_OUT} @ONLY)
+
+  # Generate the Doxyfile
+  add_custom_target(
+    doxydocs ALL # 'ALL' makes it part of the default build
+    COMMAND ${DOXYGEN_EXECUTABLE}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating doxygen docs"
+  )
+endif()
+
 # ---- Create an installable target ----
 # this allows users to install and find the library via `find_package()`.
 
@@ -150,6 +214,14 @@ install(
   INCLUDES
   DESTINATION include/${PROJECT_NAME}
 )
+
+if(${PROJECT_NAME}_DOC)
+  install(
+    DIRECTORY ${DOXYGEN_OUTPUT_DIRECTORY}/
+    DESTINATION doc/
+    COMPONENT Documentation
+  )
+endif()
 
 export(
   TARGETS ${INSTALL_TARGETS}
