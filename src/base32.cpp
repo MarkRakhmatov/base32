@@ -10,59 +10,86 @@
 #include <string_view>
 #include <utility>
 
-constexpr uint8_t gBitsPerByte = 8;
-constexpr uint8_t gBytesPerB32Block = 5;
-constexpr uint8_t gBitsPerB32Block = gBitsPerByte*gBytesPerB32Block;
-
-constexpr uint8_t gB32Padding6 = 6;
-constexpr uint8_t gB32Padding4 = 4;
-constexpr uint8_t gB32Padding3 = 3;
-constexpr uint8_t gB32Padding1 = 1;
-
-// 64 MB should be more than enough
-constexpr size_t gMaxEncodeInputLen = 64ULL * 1024 * 1024;
-
-// if 64 MB of data is encoded than it should be also possible to decode it. That's why a bigger
-// input is allowed for decoding
-constexpr size_t gMaxDecodeBasE32InputLen = ((gMaxEncodeInputLen * gBitsPerByte + 4) / gBytesPerB32Block);
-
-constexpr std::array<uint8_t, 33> gB32Alphabet{"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"};
-constexpr uint8_t gMaxAlphabetPosions = 128;
-constexpr std::array<uint8_t, gMaxAlphabetPosions> buildPositionsInAlphabet() {
-  std::array<uint8_t, gMaxAlphabetPosions> table{};
-  table.fill(std::numeric_limits<uint8_t>::max());
-
-  for(size_t i = 0; i < std::size(gB32Alphabet); ++i) {
-    table.at(gB32Alphabet.at(i)) = (uint8_t)i;
-  }
-
-  return table;
-}
-
-constexpr std::array<uint8_t, gMaxAlphabetPosions> gPositionsInAlphabet = buildPositionsInAlphabet();
-
-constexpr std::array<bool, gMaxAlphabetPosions> buildAlphabetLookupTable() {
-  std::array<bool, gMaxAlphabetPosions> table{};
-  for (const uint8_t pos: gB32Alphabet) {
-    table.at(pos) = true;
-  }
-  table['='] = true;
-
-  return table;
-}
-
-constexpr std::array<bool, gMaxAlphabetPosions> gAlphabetLookupTable = buildAlphabetLookupTable();
-
-
-constexpr bool inAlphabet(char val) {
-  if (val < 0) {
-    return false;
-  }
-
-  return gAlphabetLookupTable.at(val);
-}
 
 namespace base32 {
+  constexpr uint8_t gBitsPerByte = 8;
+  constexpr uint8_t gBytesPerB32Block = 5;
+  constexpr uint8_t gBitsPerB32Block = gBitsPerByte*gBytesPerB32Block;
+
+  constexpr uint8_t gB32Padding6 = 6;
+  constexpr uint8_t gB32Padding4 = 4;
+  constexpr uint8_t gB32Padding3 = 3;
+  constexpr uint8_t gB32Padding1 = 1;
+
+  /*!
+   *  \brief gMaxEncodeInputLen
+   *  64 MB should be more than enough
+   */
+  constexpr size_t gMaxEncodeInputLen = 64ULL * 1024 * 1024;
+
+  /*!
+   * \brief gMaxDecodeBasE32InputLen
+   *
+   * if 64 MB of data is encoded than it should be also possible to decode it. That's why a bigger input is allowed for decoding
+   */
+  constexpr size_t gMaxDecodeBasE32InputLen = ((gMaxEncodeInputLen * gBitsPerByte + 4) / gBytesPerB32Block);
+
+  constexpr std::array<uint8_t, 33> gB32Alphabet{"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"};
+  constexpr uint8_t gMaxAlphabetPosions = 128;
+
+  /*!
+   * \brief buildPositionsInAlphabet
+   *
+   * positions in base 32 alphabet, O(1) cache
+   * \return
+   */
+  constexpr std::array<uint8_t, gMaxAlphabetPosions> buildPositionsInAlphabet() {
+    std::array<uint8_t, gMaxAlphabetPosions> table{};
+    table.fill(std::numeric_limits<uint8_t>::max());
+
+    for(size_t i = 0; i < std::size(gB32Alphabet); ++i) {
+      table.at(gB32Alphabet.at(i)) = static_cast<uint8_t>(i);
+    }
+
+    return table;
+  }
+
+  /*!
+   * \brief gPositionsInAlphabet
+   */
+  constexpr std::array<uint8_t, gMaxAlphabetPosions> gPositionsInAlphabet = buildPositionsInAlphabet();
+
+  /*!
+   * \brief buildAlphabetLookupTable
+   * \return alphabet lookup table to reuse it later
+   */
+  constexpr std::array<bool, gMaxAlphabetPosions> buildAlphabetLookupTable() {
+    std::array<bool, gMaxAlphabetPosions> table{};
+    for (const uint8_t pos: gB32Alphabet) {
+      table.at(pos) = true;
+    }
+    table['='] = true;
+
+    return table;
+  }
+
+  /*!
+   * \brief gAlphabetLookupTable
+   */
+  constexpr std::array<bool, gMaxAlphabetPosions> gAlphabetLookupTable = buildAlphabetLookupTable();
+
+  /*!
+   * \brief inAlphabet
+   * \param val
+   * \return true if val in base 32 alphabet
+   */
+  constexpr bool inAlphabet(char val) {
+    if (val < 0) {
+      return false;
+    }
+
+    return gAlphabetLookupTable.at(val);
+  }
 
   std::string encode(const Bytes& userData, Error &errCode) {
     if (userData.size() > gMaxEncodeInputLen) {
