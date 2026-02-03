@@ -32,6 +32,8 @@ jobs:
       contents: read
       actions: read
       pull-requests: write
+      pages: write
+      id-token: write
 
     name: ${{matrix.os}} ${{matrix.cpp_compiler}} ${{matrix.build_type}} ${{matrix.generator}} ${{matrix.package_generator}}
     runs-on: ${{ matrix.os }}
@@ -227,6 +229,17 @@ jobs:
       with:
         name: "package-${{matrix.os}}-${{matrix.cpp_compiler}}-${{matrix.generator}}"
         path: build/*-Release-*.*
+    # deploy docs to pages
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        # Upload entire repository
+        path: './build/doc'
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
 
   tag_and_release:
     name: Tag and release
