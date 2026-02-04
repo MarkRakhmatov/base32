@@ -10,8 +10,11 @@
 #include <string_view>
 #include <utility>
 
-
-namespace base32 {
+/*!
+ * \brief internal details
+ *
+ */
+namespace {
   constexpr uint8_t gBitsPerByte = 8;
   constexpr uint8_t gBytesPerB32Block = 5;
   constexpr uint8_t gBitsPerB32Block = gBitsPerByte*gBytesPerB32Block;
@@ -32,7 +35,7 @@ namespace base32 {
    *
    * if 64 MB of data is encoded than it should be also possible to decode it. That's why a bigger input is allowed for decoding
    */
-  constexpr size_t gMaxDecodeBasE32InputLen = ((gMaxEncodeInputLen * gBitsPerByte + 4) / gBytesPerB32Block);
+  constexpr size_t gMaxDecodeBase32InputLen = ((gMaxEncodeInputLen * gBitsPerByte + 4) / gBytesPerB32Block);
 
   constexpr std::array<uint8_t, 33> gB32Alphabet{"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"};
   constexpr uint8_t gMaxAlphabetPosions = 128;
@@ -90,7 +93,10 @@ namespace base32 {
 
     return gAlphabetLookupTable.at(val);
   }
+}
 
+
+namespace base32 {
   /*!
    * \brief validateEncodeInput
    * \param userData
@@ -111,7 +117,7 @@ namespace base32 {
    * \param userData
    * \return
    */
-  uint8_t getPaddingBytesCount(const Bytes& userData) {
+  uint8_t getPaddingBytesCount(const base32::Bytes& userData) {
     const size_t userDataChars = userData.size();
     const size_t totalBits = userDataChars*8;
     uint8_t numOfEquals = 0;
@@ -177,7 +183,7 @@ namespace base32 {
    * \return
    */
   Error validateDecodeInput(const std::string_view& userData) {
-    if (userData.size() > gMaxDecodeBasE32InputLen) {
+    if (userData.size() > gMaxDecodeBase32InputLen) {
       return Error::MaxLengthExceeded;
     }
 
@@ -212,6 +218,9 @@ namespace base32 {
    * \param userDataChars - payload size
    * \param decodedData Bytes out parameter
    * \return error code
+   *
+   * \callgraph
+   * \callergraph
    */
   Error decodePayload(const std::string_view& userData, size_t userDataChars, Bytes& decodedData) {
     uint8_t mask{0};
