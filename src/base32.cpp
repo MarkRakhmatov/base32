@@ -10,10 +10,6 @@
 #include <string_view>
 #include <utility>
 
-/*!
- * \brief internal details
- *
- */
 namespace {
   constexpr uint8_t gBitsPerByte = 8;
   constexpr uint8_t gBytesPerB32Block = 5;
@@ -24,10 +20,6 @@ namespace {
   constexpr uint8_t gB32Padding3 = 3;
   constexpr uint8_t gB32Padding1 = 1;
 
-  /*!
-   * \brief gMaxEncodeInputLen
-   * 64 MB should be more than enough
-   */
   constexpr size_t gMaxEncodeInputLen = 64ULL * 1024 * 1024;
 
   /*!
@@ -64,7 +56,7 @@ namespace {
 
   /*!
    * \brief buildAlphabetLookupTable
-   * \return alphabet lookup table to reuse it later
+   * \return alphabet lookup table
    */
   constexpr std::array<bool, gMaxAlphabetPosions> buildAlphabetLookupTable() {
     std::array<bool, gMaxAlphabetPosions> table{};
