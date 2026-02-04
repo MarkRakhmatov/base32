@@ -176,7 +176,7 @@ namespace base32 {
    * \param userData
    * \return
    */
-  Error validateDencodeInput(std::string_view userData) {
+  Error validateDecodeInput(const std::string_view& userData) {
     if (userData.size() > gMaxDecodeBasE32InputLen) {
       return Error::MaxLengthExceeded;
     }
@@ -193,7 +193,7 @@ namespace base32 {
    * \param userData
    * \return payload size
    */
-  size_t getPayloadSize(std::string_view userData) {
+  size_t getPayloadSize(const std::string_view& userData) {
     size_t userDataChars = userData.size();
     for (auto chr: userData | std::views::reverse) {
       if (chr == '=') {
@@ -206,17 +206,14 @@ namespace base32 {
     return userDataChars;
   }
 
-  Bytes decode(std::string_view userData, Error &errCode) {
-    if (const Error error = validateDencodeInput(userData); error != Error::NoError) {
-      errCode = error;
-      return {};
-    }
-
-    const size_t userDataChars = getPayloadSize(userData);
-    const size_t outputLength = userDataChars > 0? (5*userDataChars - 4)/8: 0;  // round up
-    Bytes decodedData;
-    decodedData.reserve(outputLength);
-
+  /*!
+   * \brief decodePayload
+   * \param userData
+   * \param userDataChars - payload size
+   * \param decodedData Bytes out parameter
+   * \return error code
+   */
+  Error decodePayload(const std::string_view& userData, size_t userDataChars, Bytes& decodedData) {
     uint8_t mask{0};
     uint8_t currentByte{0};
     uint8_t bitsLeft{gBitsPerByte};
@@ -226,8 +223,7 @@ namespace base32 {
       }
       else if (!inAlphabet(userData[i]))
       {
-        errCode = Error::InvalidB32Input;
-        return {};
+        return Error::InvalidB32Input;
       }
       const uint8_t charIndex = gPositionsInAlphabet.at(userData[i]);
       if (bitsLeft > gBytesPerB32Block) {
@@ -243,7 +239,20 @@ namespace base32 {
       }
     }
 
-    errCode = Error::NoError;
+    return Error::NoError;
+  }
+
+  Bytes decode(std::string_view userData, Error &errCode) {
+    if (const Error error = validateDecodeInput(userData); error != Error::NoError) {
+      errCode = error;
+      return {};
+    }
+
+    const size_t userDataChars = getPayloadSize(userData);
+    const size_t outputLength = userDataChars > 0? (5*userDataChars - 4)/8: 0;  // round up
+    Bytes decodedData;
+    decodedData.reserve(outputLength);
+    errCode =  decodePayload(userData, userDataChars, decodedData);
 
     return decodedData;
   }
