@@ -10,6 +10,7 @@ project(
   base32
   VERSION 0.1.1
   LANGUAGES CXX
+  DESCRIPTION "Base32 encoding/decoding library"
 )
 
 option(${PROJECT_NAME}_BUILD_TESTS "Build test" OFF)
