@@ -67,3 +67,6 @@ target_link_libraries(your_target PRIVATE base32)
 
 #### Examples
 TODO: add code examples
+
+#### Documentation
+[base32](https://markrakhmatov.github.io/base32/index.html)

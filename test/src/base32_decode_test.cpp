@@ -18,7 +18,7 @@ constexpr base32::Bytes stringToBytes(std::string_view str) {
 
 suite<"decode"> b32_decode = [] {
   test("all_chars") = [] {
-    base32::error err{};
+    base32::Error err{};
     const char *k = "IFCEMRZUGEZSDQVDEQSSMJRIFAXT6XWDU7B2SKS3LURSSLJOFR6DYPRL";
     const base32::Bytes k_dec = stringToBytes("ADFG413!£$%&&((/?^çé*[]#)-.,|<>+");
 
@@ -28,7 +28,7 @@ suite<"decode"> b32_decode = [] {
   };
 
   test("all_chars_noplusone") = [] {
-    base32::error err{};
+    base32::Error err{};
     const char *k = "IFCEMRZUGEZSDQVDEQSSMJRIFAXT6XWDU7B2SKS3LURSSLJOFR6DYPRL";
     const auto k_dec = stringToBytes("ADFG413!£$%&&((/?^çé*[]#)-.,|<>+");
 
@@ -38,7 +38,7 @@ suite<"decode"> b32_decode = [] {
   };
 
   test("rfc4648") = [] {
-    base32::error err{};
+    base32::Error err{};
     const char *k[]
         = {"", "MY======", "MZXQ====", "MZXW6===", "MZXW6YQ=", "MZXW6YTB", "MZXW6YTBOI======"};
     const char *k_dec[] = {"", "f", "fo", "foo", "foob", "fooba", "foobar"};
@@ -50,7 +50,7 @@ suite<"decode"> b32_decode = [] {
   };
 
   test("rfc4648_noplusone") = [] {
-    base32::error err{};
+    base32::Error err{};
     const char *k[]
         = {"", "MY======", "MZXQ====", "MZXW6===", "MZXW6YQ=", "MZXW6YTB", "MZXW6YTBOI======"};
     const char *k_dec[] = {"", "f", "fo", "foo", "foob", "fooba", "foobar"};
@@ -62,28 +62,28 @@ suite<"decode"> b32_decode = [] {
   };
 
   test("invalid_input") = [] {
-    base32::error err{};
+    base32::Error err{};
     const char *k = "£&/(&/";
 
     const auto dk = base32::decode(k, err);
 
     expect(dk.empty());
-    expect(err == base32::error::INVALID_B32_INPUT);
+    expect(err == base32::Error::InvalidB32Input);
   };
 
   test("input_exceeded") = [] {
-    base32::error err{};
+    base32::Error err{};
     size_t len = 128 * 1024 * 1024;
     const std::string k(len, ' ');
 
     const auto dk = base32::decode(k, err);
 
     expect(dk.empty());
-    expect(err == base32::error::MAX_LENGTH_EXCEEDED);
+    expect(err == base32::Error::MaxLengthExceeded);
   };
 
   test("input_whitespaces") = [] {
-    base32::error err{};
+    base32::Error err{};
     const char *k = "MZ XW 6Y TB";
     const auto expected = stringToBytes("fooba");
 
@@ -94,39 +94,39 @@ suite<"decode"> b32_decode = [] {
 
   test("encode_null") = [] {
     const char *token = "LLFTSZYMUGKHEDQBAAACAZAMUFKKVFLS";
-    base32::error err{};
+    base32::Error err{};
 
     const auto binary = base32::decode(token, err);
-    expect(err == base32::error::NO_ERROR);
+    expect(err == base32::Error::NoError);
 
     const auto result = base32::encode(binary, err);
-    expect(err == base32::error::NO_ERROR);
+    expect(err == base32::Error::NoError);
 
     expect(result == token);
   };
 
   test("empty_string") = [] {
-    base32::error err{};
+    base32::Error err{};
 
     const auto binary = base32::decode("", err);
-    expect(err == base32::error::NO_ERROR);
+    expect(err == base32::Error::NoError);
     expect(binary.empty());
   };
 
   test("whitespace_string") = [] {
-    base32::error err{};
+    base32::Error err{};
 
     const auto binary = base32::decode(" ", err);
-    expect(err == base32::error::NO_ERROR);
+    expect(err == base32::Error::NoError);
     expect(binary.empty());
   };
 
   test("byte_array_all_zeroes") = [] {
-    base32::error err{};
+    base32::Error err{};
     const char *token = "AAAAAAA=";
 
     const auto binary = base32::decode(token, err);
-    expect(err == base32::error::NO_ERROR);
+    expect(err == base32::Error::NoError);
     for (int i = 0; i < 4; i++) {
       expect(binary[i] == 0_i);
     }

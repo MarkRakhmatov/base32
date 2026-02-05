@@ -1,0 +1,32 @@
+---
+name: Deploy html to Pages
+inputs:
+  token:
+    description: Github token to use to get target branch coverage report and publish comment.
+    required: false
+    default: ${{ github.token }}
+  path:
+    description: Path to the index.html
+    required: false
+    default: .
+  artifact_name:
+    description: Unique name of pages artifact
+    required: false
+    default: coverage
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: ${{ inputs.path }}
+    - name: Deploy Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+      with:
+        token:  ${{ inputs.token }}
+        artifact_name: ${{ inputs.artifact_name }}
