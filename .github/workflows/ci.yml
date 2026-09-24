@@ -262,7 +262,7 @@ jobs:
         path: packages
 
     - name: Publish Tagged Release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       if: ${{ needs.prepare_new_version.outputs.version != needs.prepare_new_version.outputs.previous_tag }}
       with:
         name: ${{ needs.prepare_new_version.outputs.version }}
