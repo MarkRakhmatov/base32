@@ -256,7 +256,7 @@ jobs:
         version: ${{ needs.prepare_new_version.outputs.version }}
         pre_release: "alpha"
 
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         pattern: package-*
         path: packages
