@@ -15,7 +15,7 @@ jobs:
     name: Prepare version number for commit
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - uses: ./.github/semver
       id: version
@@ -98,7 +98,7 @@ jobs:
             cpp_compiler: cl
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Install format dependencies
       if: ${{ matrix.os == 'ubuntu-latest' && matrix.cpp_compiler == env.CLANG_COMPILER }}
@@ -246,7 +246,7 @@ jobs:
       # permission required to create tag
       contents: write
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - uses: ./.github/tag
       id: create_tag
